@@ -1,0 +1,8 @@
+# Verhindert, dass IRGENDJEMAND Dateien in diesem Ordner per Browser aufruft
+Order Deny,Allow
+Deny from all
+
+# Falls du einen moderneren Apache-Server (2.4+) hast:
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
