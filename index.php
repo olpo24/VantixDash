@@ -2,7 +2,7 @@
 session_start();
 // Pfad zur config im geschützten data-Ordner
 $config = include __DIR__ . '/data/config.php';
-//$siteData = include __DIR__ . '/data/data.php';
+
 
 // Logout Logik
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
