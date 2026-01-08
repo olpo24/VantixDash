@@ -1,0 +1,35 @@
+[
+    {
+        "id": "695fb4093d8f0",
+        "name": "Bricks-Index",
+        "url": "https://bricks-index.de",
+        "api_key": "fsdfdssdfsfsdf64654",
+        "status": "online",
+        "version": "6.9",
+        "updates": {
+            "core": 0,
+            "plugins": 2,
+            "themes": 0
+        },
+        "php": "8.2.29",
+        "details": {
+            "core": [],
+            "plugins": [
+                {
+                    "name": "Slim SEO",
+                    "version": "4.8.2",
+                    "update_version": "4.8.3",
+                    "slug": "slim-seo/slim-seo.php"
+                },
+                {
+                    "name": "WP All Export Pro",
+                    "version": "1.9.13",
+                    "update_version": "1.9.15",
+                    "slug": "wp-all-export-pro/wp-all-export-pro.php"
+                }
+            ],
+            "themes": []
+        },
+        "last_check": "2026-01-08 15:39:59"
+    },
+    ]
