@@ -15,8 +15,14 @@
 </div>
 
 <script>
-    // Sofort beim Laden prüfen
-    document.addEventListener('DOMContentLoaded', () => App.checkUpdates());
+    // Wir warten, bis das Dokument bereit ist UND die App geladen wurde
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof App !== 'undefined' && App.checkUpdates) {
+            App.checkUpdates();
+        } else {
+            console.error("VantixDash App konnte nicht geladen werden.");
+        }
+    });
 </script>
     </div>
 </div>
