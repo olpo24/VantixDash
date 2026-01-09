@@ -317,3 +317,37 @@ tr:hover td {
     border-color: var(--primary);
     background: #eff6ff;
 }
+/* Styling für die Versions-Badges */
+.badge-beta {
+    background-color: #f59e0b; /* Orange */
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 50px;
+    text-transform: uppercase;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+.badge-stable {
+    background-color: #10b981; /* Grün */
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 50px;
+    text-transform: uppercase;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+/* Animation für den Puls-Effekt bei verfügbaren Updates */
+@keyframes pulse-orange {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.update-available-pulse {
+    animation: pulse-orange 2s infinite;
+    border: 1px solid #f59e0b !important;
+}
