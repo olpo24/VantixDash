@@ -9,7 +9,19 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0); 
 
 header('Content-Type: application/json');
+session_start();
 
+// CSRF-Schutz für alle POST-Anfragen
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $headers = getallheaders();
+    $token = $headers['X-CSRF-Token'] ?? $_POST['csrf_token'] ?? '';
+    
+    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'CSRF-Token ungültig']);
+        exit;
+    }
+}
 // 1. PFADE UND KONFIGURATION
 $baseDir = __DIR__;
 $dataDir = $baseDir . '/data';
