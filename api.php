@@ -4,14 +4,13 @@
  * Backend-Schnittstelle für VantixDash
  * Erweitert um Full-Data-Refresh für Plugin- und Theme-Details.
  */
-
-error_reporting(E_ALL);
-ini_set('display_errors', 0); 
-
+session_start();
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Nicht autorisiert']);
+    exit;
+}
 header('Content-Type: application/json');
-session_start();
-
-session_start();
 
 // CSRF-Schutz für alle POST-Anfragen
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
