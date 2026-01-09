@@ -63,8 +63,8 @@ const TableManager = {
         const site = App.sites.find(s => s.id === siteId);
         if (!site) return;
 
-        document.getElementById('modalSiteName').innerText = site.name;
-        const container = document.getElementById('detailsContainer');
+        document.getElementById('details-site-name').innerText = site.name;
+        const container = document.getElementById('details-modal-body');
         container.innerHTML = '';
 
         const details = site.details || {};
