@@ -78,7 +78,7 @@
 </div>
 
 <dialog id="siteDetailsModal" class="modal-base">
-    <div class="modal-header" style="background: #f8fafc;">
+    <div class="modal-header">
         <div>
             <h2 id="modal-site-name" class="modal-title">Webseite Details</h2>
             <p id="modal-site-url" class="modal-subtitle">URL wird geladen...</p>
@@ -111,11 +111,11 @@
         </div>
     </div>
 
-    <div style="padding: 1.25rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; justify-content: flex-end; background: #f8fafc;">
-        <button class="btn" style="background: #e2e8f0; color: var(--text-main); padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="document.getElementById('siteDetailsModal').close()">
+    <div class="modal-footer">
+        <button class="btn-secondary" onclick="document.getElementById('siteDetailsModal').close()">
             Schließen
         </button>
-        <button id="modal-login-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="App.loginToSite(App.currentActiveSiteId)">
+        <button id="modal-login-btn" class="btn btn-primary">
             <i class="ph ph-sign-in"></i> WP-Admin Login
         </button>
     </div>
