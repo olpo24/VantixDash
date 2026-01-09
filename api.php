@@ -4,10 +4,13 @@
  * Backend-Schnittstelle für VantixDash
  * Erweitert um Full-Data-Refresh für Plugin- und Theme-Details.
  */
+<?php
 session_start();
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'Nicht autorisiert']);
+    // Falls ein alter Session-Rest existiert, zerstören wir ihn zur Sicherheit
+    session_unset();
+    session_destroy();
+    header('Location: login.php');
     exit;
 }
 header('Content-Type: application/json');
