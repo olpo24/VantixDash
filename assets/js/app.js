@@ -49,7 +49,7 @@ const App = {
         }
 
         try {
-            const response = await fetch('api.php?action=get_sites');
+            const response = await fetch('api.php?action=get_sites&t=' + Date.now());
             if (!response.ok) throw new Error("API-Abruf fehlgeschlagen");
             
             this.sites = await response.json();
@@ -97,11 +97,10 @@ const App = {
                 document.getElementById('addSiteModal').close();
                 form.reset();
                 
-                // Key im Erfolgs-Modal anzeigen
                 document.getElementById('generatedKeyDisplay').innerText = result.api_key;
                 document.getElementById('keySuccessModal').showModal();
                 
-                this.loadSites(); // UI im Hintergrund aktualisieren
+                this.loadSites();
             } else {
                 alert('Fehler: ' + result.message);
             }
@@ -241,24 +240,33 @@ const App = {
     },
 
     /**
-     * Prüft auf System-Updates via GitHub
+     * Prüft auf System-Updates (Stable via GitHub Release API / Beta via beta-Branch)
      */
     async checkUpdates() {
         const statusDiv = document.getElementById('update-status');
         if (!statusDiv) return;
 
+        const isBeta = document.getElementById('beta-toggle')?.checked || false;
+        statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
+
         try {
-            const response = await fetch('api.php?action=check_update');
+            const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
             const data = await response.json();
             
             if (data.update_available) {
-                statusDiv.className = "alert alert-warning border-0";
-                statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
+                statusDiv.className = "alert alert-warning border-0 d-flex align-items-center justify-content-between";
+                statusDiv.innerHTML = `<div><strong>${data.mode}-Update verfügbar!</strong> Version ${data.remote} ist bereit. (Lokal: ${data.local})</div>`;
+                
                 const actions = document.getElementById('update-actions');
+                const urlInput = document.getElementById('pending-download-url');
+                
                 if (actions) actions.style.display = 'block';
+                if (urlInput) urlInput.value = data.download_url;
             } else {
                 statusDiv.className = "alert alert-success border-0";
-                statusDiv.innerHTML = `VantixDash ist auf dem neuesten Stand (v${data.local})`;
+                statusDiv.innerHTML = `<i class="ph ph-check-circle me-2"></i> VantixDash ${data.mode} ist aktuell (v${data.local})`;
+                const actions = document.getElementById('update-actions');
+                if (actions) actions.style.display = 'none';
             }
         } catch (e) {
             statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
@@ -266,10 +274,16 @@ const App = {
     },
 
     /**
-     * Installiert das System-Update
+     * Installiert das System-Update unter Verwendung der bereitgestellten URL
      */
     async runUpdate() {
-        if (!confirm("Update jetzt installieren? Bestehende Dateien werden überschrieben (außer Config).")) return;
+        const downloadUrl = document.getElementById('pending-download-url')?.value;
+        if (!downloadUrl) {
+            alert("Keine Update-URL gefunden. Bitte prüfen Sie erneut auf Updates.");
+            return;
+        }
+
+        if (!confirm("Update jetzt installieren? Einstellungen (config.php) bleiben erhalten, Systemdateien werden überschrieben.")) return;
         
         const btn = document.getElementById('start-update-btn');
         if (btn) {
@@ -277,17 +291,23 @@ const App = {
             btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
         }
 
+        const formData = new FormData();
+        formData.append('url', downloadUrl);
+
         try {
-            const response = await fetch('api.php?action=install_update');
+            const response = await fetch('api.php?action=install_update', {
+                method: 'POST',
+                body: formData
+            });
             const data = await response.json();
             if (data.success) {
-                alert("Update abgeschlossen!");
+                alert("Update erfolgreich abgeschlossen!");
                 window.location.reload();
             } else {
                 alert("Fehler: " + data.message);
             }
         } catch (e) {
-            alert("Update fehlgeschlagen.");
+            alert("Update fehlgeschlagen. Bitte prüfen Sie die Server-Berechtigungen.");
         } finally {
             if (btn) btn.disabled = false;
         }
