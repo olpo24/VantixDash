@@ -1,0 +1,45 @@
+name: VantixDash Version Manager
+
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - beta
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set Version for Release
+        if: github.event_name == 'release'
+        run: |
+          VERSION_TAG=${{ github.event.release.tag_name }}
+          VERSION_CLEAN=${VERSION_TAG#v}
+          echo "NEW_VERSION=$VERSION_CLEAN" >> $GITHUB_ENV
+
+      - name: Set Version for Beta Push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
+        run: |
+          # Holt die Basis-Version aus der Datei und hängt Beta-Infos an
+          BASE_VERSION=$(php -r "$v = include 'version.php'; echo str_replace('-beta', '', explode('.', $v['version'])[0].'.'.explode('.', $v['version'])[1].'.'.explode('.', $v['version'])[2]);")
+          DATE=$(date +'%Y%m%d')
+          echo "NEW_VERSION=${BASE_VERSION}-beta.${DATE}" >> $GITHUB_ENV
+
+      - name: Update version.php file
+        run: |
+          echo "Updating version.php to ${{ env.NEW_VERSION }}"
+          sed -i "s/'version' => '.*'/'version' => '${{ env.NEW_VERSION }}'/" version.php
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          branch: ${{ github.event_name == 'push' && 'beta' || 'main' }}
