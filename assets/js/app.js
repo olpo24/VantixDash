@@ -252,6 +252,11 @@ const App = {
             const data = await response.json();
             
             if (data.update_available) {
+				const pendingInput = document.getElementById('pending-download-url');
+    if (pendingInput) {
+        pendingInput.value = data.download_url; // Hier wird die URL gesetzt!
+        console.log("Download-URL gespeichert:", data.download_url); // Zum Testen im Browser (F12)
+    }
                 statusDiv.className = "alert alert-warning border-0";
                 statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
                 const actions = document.getElementById('update-actions');
