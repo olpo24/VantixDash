@@ -46,34 +46,52 @@ const TableManager = {
         const modal = document.getElementById('siteDetailsModal');
         if (!site || !modal) return;
 
-        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val || '-'; };
-        setVal('modal-site-name', site.name);
-        setVal('modal-site-url', site.url);
-        setVal('modal-wp-version', site.version);
-        setVal('modal-php-version', site.php);
-        setVal('modal-ip-address', site.ip);
+        // IDs im Modal befüllen
+        document.getElementById('modal-site-name').innerText = site.name;
+        document.getElementById('modal-site-url').innerText = site.url;
+        document.getElementById('modal-wp-version').innerText = site.version || '-';
+        document.getElementById('modal-php-version').innerText = site.php || '-';
+        document.getElementById('modal-ip-address').innerText = site.ip || '-';
 
+        // Login Button im Modal konfigurieren
+        const loginBtn = document.getElementById('modal-login-btn');
+        if (loginBtn) {
+            loginBtn.onclick = () => App.loginToSite(site.id);
+        }
+
+        // Update Listen
         const pluginCont = document.getElementById('plugin-list-container');
         const themeCont = document.getElementById('theme-list-container');
         const section = document.getElementById('modal-updates-section');
 
-        pluginCont.innerHTML = ''; themeCont.innerHTML = '';
-        const pList = site.updates?.plugin_list || [];
-        const tList = site.updates?.theme_list || [];
+        pluginCont.innerHTML = ''; 
+        themeCont.innerHTML = '';
+        
+        const pList = site.plugin_list || []; // Greift direkt auf die flache Liste zu
+        const tList = site.theme_list || [];
 
-        if (pList.length || tList.length) {
+        if (pList.length > 0 || tList.length > 0) {
             section.style.display = 'block';
             pList.forEach(p => {
-                pluginCont.innerHTML += `<div class="update-list-item"><span><strong>${p.name}</strong></span><span class="version-change">${p.old_version} → ${p.new_version}</span></div>`;
+                pluginCont.innerHTML += `
+                    <div class="update-list-item">
+                        <span><strong>${Utils.escapeHTML(p.name)}</strong></span>
+                        <span class="version-change">${p.old_version} → ${p.new_version}</span>
+                    </div>`;
             });
             tList.forEach(t => {
-                themeCont.innerHTML += `<div class="update-list-item"><span><strong>${t.name}</strong></span><span class="version-change">${t.old_version} → ${t.new_version}</span></div>`;
+                themeCont.innerHTML += `
+                    <div class="update-list-item">
+                        <span><strong>${Utils.escapeHTML(t.name)}</strong></span>
+                        <span class="version-change">${t.old_version} → ${t.new_version}</span>
+                    </div>`;
             });
-        } else { section.style.display = 'none'; }
+        } else {
+            section.style.display = 'none';
+        }
 
         modal.showModal();
     },
-
     setLoading(isLoading) {
         const tbody = document.getElementById('sites-tbody');
         if (tbody && isLoading) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:3rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem; color:var(--primary);"></i></td></tr>';
