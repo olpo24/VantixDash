@@ -3,6 +3,10 @@
  * settings_general.php
  * Verwaltung der globalen Dashboard-Einstellungen und Updates.
  */
+
+// Sicherer Abruf der Version
+$versionData = include('version.php');
+$currentVersion = is_array($versionData) ? $versionData['version'] : $versionData;
 ?>
 
 <div style="max-width: 800px; margin: 0 auto;">
@@ -13,13 +17,13 @@
 
     <div class="card" style="margin-bottom: 2rem;">
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <div style="background: var(--primary-light); color: var(--primary); padding: 0.75rem; border-radius: 10px;">
+            <div style="background: #eff6ff; color: #3b82f6; padding: 0.75rem; border-radius: 10px;">
                 <i class="ph ph-arrows-clockwise" style="font-size: 1.5rem;"></i>
             </div>
             <div>
                 <h2 style="font-size: 1.1rem; font-weight: 700; margin: 0;">System-Update</h2>
                 <p class="text-muted small" style="margin: 0;">Aktuelle Version: 
-                    <span class="badge" style="background: #f1f5f9; color: #475569;">v<?php echo include('version.php')['version']; ?></span>
+                    <span class="badge" style="background: #f1f5f9; color: #475569;">v<?php echo htmlspecialchars($currentVersion); ?></span>
                 </p>
             </div>
         </div>
@@ -55,20 +59,6 @@
         </div>
     </div>
 
-    <div class="card" style="margin-bottom: 2rem;">
-        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem;">Erscheinungsbild</h3>
-        <div style="display: grid; gap: 1.5rem;">
-            <div>
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Dashboard Name</label>
-                <input type="text" class="form-control" value="VantixDash" placeholder="Z.B. Mein Web-Panel">
-            </div>
-            <div style="display: flex; gap: 1rem; align-items: center; padding: 1rem; background: #f0fdf4; border-radius: 8px; color: #166534;">
-                <i class="ph ph-info" style="font-size: 1.25rem;"></i>
-                <span class="small">Die Einstellungen werden automatisch in der <code>config.php</code> gespeichert.</span>
-            </div>
-        </div>
-    </div>
-
     <div class="card" style="border: 1px solid #fee2e2;">
         <h3 style="font-size: 1rem; font-weight: 700; color: #991b1b; margin-bottom: 1rem;">Gefahrenzone</h3>
         <p class="text-muted small">Diese Aktionen können nicht rückgängig gemacht werden.</p>
@@ -86,16 +76,19 @@
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
 .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-input:checked + .slider { background-color: var(--primary); }
+input:checked + .slider { background-color: #3b82f6; }
 input:checked + .slider:before { transform: translateX(22px); }
 
 .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-family: monospace; }
 </style>
 
 <script>
-// Initialen Status des Beta-Toggles setzen
 document.addEventListener('DOMContentLoaded', () => {
     const isBeta = localStorage.getItem('vantix_beta') === 'true';
-    document.getElementById('beta-toggle').checked = isBeta;
+    const toggle = document.getElementById('beta-toggle');
+    if (toggle) toggle.checked = isBeta;
+    
+    // Automatisch nach Updates suchen, wenn die Einstellungsseite geladen wird
+    App.checkAppUpdates();
 });
 </script>
