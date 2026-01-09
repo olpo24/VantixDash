@@ -11,14 +11,25 @@ ini_set('display_errors', 0);
 header('Content-Type: application/json');
 session_start();
 
+session_start();
+
 // CSRF-Schutz für alle POST-Anfragen
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $headers = getallheaders();
-    $token = $headers['X-CSRF-Token'] ?? $_POST['csrf_token'] ?? '';
+    // Versuche das Token aus verschiedenen Quellen zu lesen
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''; // Standard für X-CSRF-Token Header
+    if (empty($token)) {
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $token = $headers['X-CSRF-Token'] ?? $headers['x-csrf-token'] ?? $_POST['csrf_token'] ?? '';
+    }
     
     if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'CSRF-Token ungültig']);
+        echo json_encode([
+            'success' => false, 
+            'message' => 'CSRF-Token ungültig',
+            'debug_received' => substr($token, 0, 5) . '...', // Nur zum Debuggen
+            'debug_expected' => isset($_SESSION['csrf_token']) ? 'set' : 'not_set'
+        ]);
         exit;
     }
 }
