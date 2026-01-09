@@ -1,29 +1,27 @@
-<div class="card shadow-sm border-0">
-    <div class="card-body p-4">
-        <h5 class="fw-bold mb-4">Allgemeine Einstellungen</h5>
-        <div class="card shadow-sm p-4">
-    <h3 class="h5 fw-bold mb-3"><i class="ph ph-git-branch me-2"></i>System Update</h3>
-    <div id="update-status" class="alert alert-info border-0">
-        Prüfe auf Updates...
-    </div>
-    <div id="update-actions" style="display: none;">
-        <p class="small text-muted">Ein neues Update ist verfügbar. Bitte sichere deine Daten, bevor du fortfährst.</p>
-        <input type="hidden" id="pending-download-url">
-		<button id="start-update-btn" class="btn btn-primary" onclick="App.runUpdate()">
-            <i class="ph ph-download-simple me-2"></i> Jetzt installieren
-        </button>
-    </div>
-</div>
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h5 class="card-title mb-0">System-Update</h5>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="beta-toggle" onchange="App.checkUpdates()">
+                <label class="form-check-label small text-muted" for="beta-toggle">Beta-Kanal nutzen</label>
+            </div>
+        </div>
 
-<script>
-    // Wir warten, bis das Dokument bereit ist UND die App geladen wurde
-    document.addEventListener('DOMContentLoaded', () => {
-        if (typeof App !== 'undefined' && App.checkUpdates) {
-            App.checkUpdates();
-        } else {
-            console.error("VantixDash App konnte nicht geladen werden.");
-        }
-    });
-</script>
+        <div id="update-status" class="alert alert-info border-0">
+            <i class="ph ph-info me-2"></i> Klicke auf "Prüfen", um nach Updates zu suchen.
+        </div>
+
+        <input type="hidden" id="pending-download-url" value="">
+
+        <div id="update-actions" style="display: none;" class="mt-3">
+            <button id="start-update-btn" onclick="App.runUpdate()" class="btn btn-primary w-100">
+                <i class="ph ph-download-simple me-2"></i> Update jetzt installieren
+            </button>
+        </div>
+        
+        <button onclick="App.checkUpdates()" class="btn btn-outline-secondary btn-sm mt-2">
+            <i class="ph ph-arrows-clockwise me-1"></i> Jetzt prüfen
+        </button>
     </div>
 </div>
