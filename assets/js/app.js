@@ -41,6 +41,24 @@ const App = {
     },
 
     /**
+     * Hilfsfunktion für einheitliches Datumsformat: DD.MM.YYYY - HH:mm Uhr
+     */
+    formatDate(dateString) {
+        if (!dateString || dateString === 'Nie') return 'Nie';
+        
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
+
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return `${day}.${month}.${year} - ${hours}:${minutes} Uhr`;
+    },
+
+    /**
      * Lädt die Seiten-Daten von der api.php
      */
     async loadSites() {
@@ -54,7 +72,7 @@ const App = {
             
             this.sites = await response.json();
             
-            // Statistiken in den Karten oben aktualisieren
+            // Statistiken und Datum oben aktualisieren
             this.updateStats();
             
             // Bestimmen, welche Ansicht gerade aktiv ist
@@ -109,11 +127,11 @@ const App = {
             }
         }
 
-        // 3. Letzter Check (Uhrzeit aktualisieren)
+        // 3. Letzter Check (Uhrzeit/Datum in Karte oben)
         const lastCheckEl = document.getElementById('last-update-time');
         if (lastCheckEl) {
-            const now = new Date();
-            lastCheckEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            lastCheckEl.style.fontSize = "0.85rem";
+            lastCheckEl.innerText = this.formatDate(new Date());
         }
     },
 
@@ -240,7 +258,7 @@ const App = {
 
             if (result.success) {
                 this.sites = this.sites.map(s => s.id === siteId ? result.site : s);
-                this.updateStats(); // Auch Stats nach Einzelrefresh erneuern
+                this.updateStats(); 
                 if (typeof TableManager !== 'undefined') {
                     TableManager.renderDashboardTable(this.sites);
                 }
