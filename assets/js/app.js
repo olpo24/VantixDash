@@ -14,6 +14,7 @@ const Utils = {
 const App = {
     sites: [],
     currentVersion: '0.0.0',
+    updateData: null, // Speichert Update-Informationen
 
     init() {
         // Event-Listener für das Hinzufügen von Seiten
@@ -167,23 +168,38 @@ const App = {
             const response = await fetch(`api.php?action=check_update&beta=${betaMode}`);
             const data = await response.json();
 
+            console.log('Update Check Response:', data); // Debug-Log
+
             if (data.success && data.update_available) {
+                // Speichere die kompletten Update-Daten
+                this.updateData = data;
+
                 if (updateBanner) {
                     updateBanner.style.display = 'flex';
                     document.getElementById('new-version-tag').innerText = `v${data.remote}`;
                     
                     const updateBtn = document.getElementById('start-update-btn');
                     if (updateBtn) {
-                        updateBtn.onclick = () => this.installAppUpdate(data.download_url);
+                        // Verwende die gespeicherten updateData statt direkt die URL
+                        updateBtn.onclick = () => this.installAppUpdate();
                     }
                 }
+            } else if (updateBanner) {
+                updateBanner.style.display = 'none';
             }
         } catch (error) {
-            console.error("Update-Check fehlgeschlagen");
+            console.error("Update-Check fehlgeschlagen:", error);
         }
     },
 
-    async installAppUpdate(url) {
+    async installAppUpdate() {
+        // Prüfe ob Update-Daten vorhanden sind
+        if (!this.updateData || !this.updateData.download_url) {
+            alert('Fehler: Keine Update-Informationen verfügbar. Bitte versuche es erneut.');
+            console.error('UpdateData:', this.updateData);
+            return;
+        }
+
         const btn = document.getElementById('start-update-btn');
         if (btn) {
             btn.disabled = true;
@@ -192,7 +208,10 @@ const App = {
 
         try {
             const formData = new FormData();
-            formData.append('url', url);
+            formData.append('url', this.updateData.download_url);
+            
+            console.log('Installing update from:', this.updateData.download_url); // Debug-Log
+            
             const response = await fetch('api.php?action=install_update', {
                 method: 'POST',
                 body: formData
@@ -206,6 +225,7 @@ const App = {
                 throw new Error(result.message || 'Installation fehlgeschlagen');
             }
         } catch (error) {
+            console.error('Update Error:', error);
             alert('Fehler beim Update: ' + error.message);
             if (btn) {
                 btn.disabled = false;
