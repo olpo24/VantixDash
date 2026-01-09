@@ -233,7 +233,6 @@ switch ($action) {
             $zip->extractTo($extractPath);
             $zip->close();
 
-            // Root-Ordner im ZIP finden (GitHub Struktur)
             $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
             $sourceRoot = reset($subDirs);
 
@@ -250,7 +249,6 @@ switch ($action) {
                     if ($file->isDir()) {
                         if (!is_dir($destPath)) mkdir($destPath, 0755, true);
                     } else {
-                        // Schutz von config.php und data Ordner
                         if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
                             copy($file->getRealPath(), $destPath);
                         }
@@ -258,9 +256,19 @@ switch ($action) {
                 }
             }
 
-            // Aufräumen
-            unlink($tempZip);
-            // Hilfsfunktion zum rekursiven Löschen des Temp-Ordners könnte hier folgen
+            // --- AUFRÄUMEN ---
+            unlink($tempZip); // ZIP löschen
+            
+            // Rekursive Löschfunktion für den Temp-Ordner
+            $deleteTemp = function($dir) use (&$deleteTemp) {
+                if (!is_dir($dir)) return;
+                $files = array_diff(scandir($dir), ['.', '..']);
+                foreach ($files as $file) {
+                    (is_dir("$dir/$file")) ? $deleteTemp("$dir/$file") : unlink("$dir/$file");
+                }
+                return rmdir($dir);
+            };
+            $deleteTemp($extractPath);
             
             echo json_encode(['success' => true]);
         } else {
