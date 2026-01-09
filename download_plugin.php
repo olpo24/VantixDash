@@ -28,7 +28,7 @@ if ($zip->open($tempFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TR
 /**
  * Plugin Name: VantixDash Child
  * Description: Sicherer Connector für dein VantixDash Monitoring (Zugelassen für $origin).
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: VantixDash
  */
 
@@ -101,7 +101,6 @@ add_action('rest_api_init', function () {
         return (\$saved_key && \$auth_header === \$saved_key);
     };
 
-    // STATUS ABFRAGE (Verbessert mit strukturierten Details)
     register_rest_route('vantixdash/v1', '/status', [
         'methods' => 'GET',
         'callback' => function () {
@@ -113,58 +112,54 @@ add_action('rest_api_init', function () {
             \$up_t = get_site_transient('update_themes');
             \$up_c = get_site_transient('update_core');
 
-            // CORE
-            \$core_list = [];
+            // CORE Updates
+            \$core_updates = 0;
             if (isset(\$up_c->updates) && is_array(\$up_c->updates)) {
                 foreach(\$up_c->updates as \$u) { 
-                    if(\$u->response === 'upgrade') { 
-                        \$core_list[] = ["name" => "WordPress Core", "version" => get_bloginfo('version'), "update_version" => \$u->current]; 
-                        break; 
-                    } 
+                    if(\$u->response === 'upgrade') { \$core_updates = 1; break; } 
                 }
             }
 
-            // PLUGINS (Strukturiert)
+            // PLUGINS Liste
             \$p_list = [];
             if (!empty(\$up_p->response)) {
                 foreach (\$up_p->response as \$path => \$data) {
                     \$info = get_plugin_data(WP_PLUGIN_DIR . '/' . \$path);
                     \$p_list[] = [
                         'name' => \$info['Name'] ?: \$path,
-                        'version' => \$info['Version'],
-                        'update_version' => \$data->new_version,
-                        'slug' => \$path
+                        'old_version' => \$info['Version'],
+                        'new_version' => \$data->new_version
                     ];
                 }
             }
 
-            // THEMES (Strukturiert)
+            // THEMES Liste
             \$t_list = [];
             if (!empty(\$up_t->response)) {
                 foreach (\$up_t->response as \$slug => \$data) {
                     \$theme = wp_get_theme(\$slug);
                     \$t_list[] = [
                         'name' => \$theme->exists() ? \$theme->get('Name') : \$slug,
-                        'version' => \$theme->exists() ? \$theme->get('Version') : '?',
-                        'update_version' => \$data['new_version'],
-                        'slug' => \$slug
+                        'old_version' => \$theme->exists() ? \$theme->get('Version') : '?',
+                        'new_version' => \$data['new_version']
                     ];
                 }
             }
 
             return [
                 'version' => get_bloginfo('version'),
-                'php' => phpversion(),
-                'core' => count(\$core_list),
+                'php'     => phpversion(),
+                'core'    => \$core_updates,
                 'plugins' => count(\$p_list),
-                'themes' => count(\$t_list),
-                'details' => ['core' => \$core_list, 'plugins' => \$p_list, 'themes' => \$t_list]
+                'themes'  => count(\$t_list),
+                'plugin_list' => \$p_list,
+                'theme_list'  => \$t_list,
+                'ip'      => \$_SERVER['SERVER_ADDR'] ?? ''
             ];
         },
         'permission_callback' => \$auth_check
     ]);
 
-    // LOGIN-TOKEN
     register_rest_route('vantixdash/v1', '/login', [
         'methods' => 'GET',
         'callback' => function() {
