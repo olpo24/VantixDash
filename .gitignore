@@ -1,0 +1,21 @@
+# --- Sensible Konfiguration ---
+# Enthält dein Admin-Passwort und den Secret Key
+config.php
+
+# --- Anwendungsdaten ---
+# Verhindert, dass die Liste deiner Webseiten inkl. API-Keys auf GitHub landet
+data/sites.json
+
+# --- Update-Prozess ---
+# Temporäre Dateien, die während des GitHub-Updates entstehen
+data/update_temp.zip
+data/temp_extract/
+
+# --- Logs & Cache ---
+*.log
+.cache/
+
+# --- System-Dateien ---
+.DS_Store
+Thumbs.db
+.htaccess
