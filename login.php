@@ -1,13 +1,22 @@
 <?php
 session_start();
 require_once 'libs/GoogleAuthenticator.php';
+
 $dataDir = __DIR__ . '/data';
 $configFile = $dataDir . '/config.php';
+$attemptsFile = $dataDir . '/login_attempts.json';
+
+// Config laden (da sie ein Array zurückgibt)
 if (file_exists($configFile)) {
-    include $configFile;
+    $config = include $configFile;
 } else {
-    die("Fehler: Konfigurationsdatei nicht gefunden in $configFile");
+    die("Fehler: Konfigurationsdatei nicht gefunden.");
 }
+
+// Zugriff auf die Array-Keys (Mapping auf deine Baseline)
+$dashboard_user     = $config['dashboard_user'] ?? '';
+$dashboard_password = $config['dashboard_password'] ?? '';
+$google_2fa_secret  = $config['google_2fa_secret'] ?? '';
 
 $attemptsFile = $dataDir . '/login_attempts.json';
 if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
