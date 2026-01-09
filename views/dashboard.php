@@ -46,7 +46,7 @@
         </div>
         <div>
             <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Letzter Check</div>
-            <div style="font-size: 1.1rem; font-weight: 700;" id="last-update-time">--:--</div>
+            <div style="font-size: 0.85rem; font-weight: 700;" id="last-update-time">--:--</div>
         </div>
     </div>
 
@@ -55,19 +55,19 @@
 <div class="card" style="padding: 0; overflow: hidden;">
     <div class="table-container">
         <table>
-      <thead>
-    <tr>
-        <th style="padding-left: 1.5rem;">Website / URL</th>
-        <th style="text-align: center;">WP Version</th>
-        <th style="text-align: center;">PHP</th>
-        <th style="text-align: center;">Updates</th>
-        <th style="text-align: center;">Check</th>
-        <th style="text-align: right; padding-right: 1.5rem;">Aktionen</th>
-    </tr>
-</thead>
+            <thead>
+                <tr>
+                    <th style="padding-left: 1.5rem;">Website / URL</th>
+                    <th>WP Version</th>
+                    <th>PHP</th>
+                    <th>Updates</th>
+                    <th>Check</th>
+                    <th style="padding-right: 1.5rem;">Aktionen</th>
+                </tr>
+            </thead>
             <tbody id="sites-tbody">
                 <tr>
-                    <td colspan="5" style="text-align: center; padding: 4rem; color: var(--text-muted);">
+                    <td colspan="6" style="text-align: center; padding: 4rem; color: var(--text-muted);">
                         <i class="ph ph-circle-notch ph-spin" style="font-size: 2rem; display: block; margin: 0 auto 1rem;"></i>
                         Verbindung zum VantixDash System wird hergestellt...
                     </td>
@@ -77,18 +77,45 @@
     </div>
 </div>
 
-<dialog id="detailsModal" class="card shadow-lg" style="width: 600px; border: none; padding: 0; margin: auto;">
-    <div style="padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
-        <h3 id="details-site-name" style="font-weight: 800; margin: 0;">Details</h3>
-        <button onclick="this.closest('dialog').close()" style="background:none; border:none; cursor:pointer;"><i class="ph ph-x" style="font-size: 1.25rem;"></i></button>
+<dialog id="siteDetailsModal" class="modal-base">
+    <div class="modal-header" style="background: #f8fafc;">
+        <div>
+            <h2 id="modal-site-name" class="modal-title">Webseite Details</h2>
+            <p id="modal-site-url" class="modal-subtitle">URL wird geladen...</p>
+        </div>
+        <button class="btn-close" onclick="document.getElementById('siteDetailsModal').close()">
+            <i class="ph ph-x"></i>
+        </button>
     </div>
     
-    <div id="details-modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+    <div class="modal-body">
+        <div class="details-grid">
+            <div class="detail-item">
+                <label>WordPress</label>
+                <div id="modal-wp-version">-</div>
+            </div>
+            <div class="detail-item">
+                <label>PHP Version</label>
+                <div id="modal-php-version">-</div>
+            </div>
+            <div class="detail-item">
+                <label>IP Adresse</label>
+                <div id="modal-ip-address">-</div>
+            </div>
         </div>
+        
+        <div id="modal-updates-section" class="mt-4" style="display: none;">
+            <h3 class="section-title">Verfügbare Updates</h3>
+            <div id="plugin-list-container"></div>
+            <div id="theme-list-container" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
 
-    <div style="padding: 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 1rem; justify-content: flex-end;">
-        <button class="btn" style="background: var(--border);" onclick="this.closest('dialog').close()">Schließen</button>
-        <button id="details-admin-link-btn" class="btn btn-primary">
+    <div style="padding: 1.25rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; justify-content: flex-end; background: #f8fafc;">
+        <button class="btn" style="background: #e2e8f0; color: var(--text-main); padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="document.getElementById('siteDetailsModal').close()">
+            Schließen
+        </button>
+        <button id="modal-login-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="App.loginToSite(App.currentActiveSiteId)">
             <i class="ph ph-sign-in"></i> WP-Admin Login
         </button>
     </div>
