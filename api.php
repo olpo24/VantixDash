@@ -4,7 +4,6 @@
  * Backend-Schnittstelle für VantixDash
  * Erweitert um Full-Data-Refresh für Plugin- und Theme-Details.
  */
-<?php
 session_start();
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     // Falls ein alter Session-Rest existiert, zerstören wir ihn zur Sicherheit
