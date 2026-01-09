@@ -1,9 +1,14 @@
 <?php
 session_start();
 require_once 'libs/GoogleAuthenticator.php';
-include 'config.php';
-
 $dataDir = __DIR__ . '/data';
+$configFile = $dataDir . '/config.php';
+if (file_exists($configFile)) {
+    include $configFile;
+} else {
+    die("Fehler: Konfigurationsdatei nicht gefunden in $configFile");
+}
+
 $attemptsFile = $dataDir . '/login_attempts.json';
 if (!is_dir($dataDir)) mkdir($dataDir, 0755, true);
 
