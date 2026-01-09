@@ -1,0 +1,10 @@
+<?php
+/**
+ * VantixDash - Konfigurations-Schablone
+ * Kopiere diese Datei nach 'config.php' und passe die Werte an.
+ */
+return [
+    'admin_password' => '$2y$10$EXAMPLE_HASH_HERE', // Generiere einen Hash für dein Passwort
+    'secret_key'     => 'dein_super_geheimer_schluessel_hier',
+    'base_url'       => 'https://deine-dashboard-domain.de'
+];
