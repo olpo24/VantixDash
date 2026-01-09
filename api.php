@@ -1,8 +1,11 @@
 <?php
+/**
+ * VantixDash - Zentrale API
+ */
 session_start();
 header('Content-Type: application/json');
 
-// 1. Sicherheit
+// 1. Sicherheit: Authentifizierung
 if (!isset($_SESSION['authenticated'])) {
     echo json_encode(['success' => false, 'message' => 'Nicht eingeloggt']);
     exit;
@@ -10,6 +13,7 @@ if (!isset($_SESSION['authenticated'])) {
 
 $dataDir = __DIR__ . '/data';
 $sitesFile = $dataDir . '/sites.json';
+$versionFile = __DIR__ . '/version.php';
 
 // 2. Verzeichnis & Datei sicherstellen
 if (!is_dir($dataDir)) {
@@ -19,12 +23,12 @@ if (!file_exists($sitesFile)) {
     file_put_contents($sitesFile, json_encode([]));
 }
 
+// Hilfsfunktionen
 function loadSites($file) {
     return json_decode(file_get_contents($file), true) ?: [];
 }
 
 function saveSites($file, $data) {
-    // JSON_INVALID_UTF8_SUBSTITUTE hilft bei Encoding-Problemen
     return file_put_contents($file, json_encode(array_values($data), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
@@ -66,6 +70,12 @@ switch ($action) {
 
     case 'update_site':
         $id = $_POST['id'] ?? '';
+        // Sicherheits-Validierung der ID
+        if (!preg_match('/^[a-f0-9]+$/i', $id)) {
+            echo json_encode(['success' => false, 'message' => 'Ungültiges ID Format']);
+            exit;
+        }
+
         $name = trim($_POST['name'] ?? '');
         $url = rtrim(trim($_POST['url'] ?? ''), '/');
         $renew = isset($_POST['renew_key']);
@@ -96,6 +106,8 @@ switch ($action) {
         
     case 'delete_site':
         $id = $_POST['id'] ?? '';
+        if (!preg_match('/^[a-f0-9]+$/i', $id)) { exit; }
+
         $sites = loadSites($sitesFile);
         $filtered = array_filter($sites, fn($s) => $s['id'] !== $id);
         
@@ -105,50 +117,28 @@ switch ($action) {
             echo json_encode(['success' => false]);
         }
         break;
-		
-		case 'refresh_site':
-        // 1. ID sicher abgreifen
-        $id = isset($_POST['id']) ? trim($_POST['id']) : '';
-        if (empty($id)) {
-            $jsonInput = json_decode(file_get_contents('php://input'), true);
-            $id = isset($jsonInput['id']) ? trim($jsonInput['id']) : '';
-        }
-
-        // 2. Sites laden
-        if (!file_exists($sitesFile)) {
-            echo json_encode(['success' => false, 'message' => 'sites.json nicht gefunden']);
-            exit;
-        }
         
-        $sites = json_decode(file_get_contents($sitesFile), true);
-        if (!$sites) {
-            echo json_encode(['success' => false, 'message' => 'sites.json leer oder korrupt']);
+    case 'refresh_site':
+        $id = trim($_POST['id'] ?? '');
+        if (!preg_match('/^[a-f0-9]+$/i', $id)) {
+            echo json_encode(['success' => false, 'message' => 'Ungültige ID']);
             exit;
         }
 
+        $sites = loadSites($sitesFile);
         $foundIndex = -1;
         foreach ($sites as $index => $site) {
-            // Wir nutzen hier den losen Vergleich == statt === falls Typ-Unterschiede vorliegen
-            if (isset($site['id']) && trim($site['id']) == $id) {
+            if ($site['id'] == $id) {
                 $foundIndex = $index;
                 break;
             }
         }
 
         if ($foundIndex === -1) {
-            // HIER IST DER WICHTIGE DEBUG-OUTPUT:
-            echo json_encode([
-                'success' => false, 
-                'message' => "ID '$id' nicht in sites.json gefunden. Vorhandene IDs: " . implode(', ', array_column($sites, 'id'))
-            ]);
+            echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden']);
             exit;
         }
 
-        // Ab hier folgt die CURL-Logik (wie gehabt)...
-        $site = &$sites[$foundIndex];
-        // ... (dein restlicher Curl Code)
-
-        // Logik aus check_sites.php für diese eine Seite ausführen
         $site = &$sites[$foundIndex];
         $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
         
@@ -182,75 +172,99 @@ switch ($action) {
                 saveSites($sitesFile, $sites);
                 echo json_encode(['success' => true, 'site' => $site]);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Ungültige Antwort von WP']);
+                echo json_encode(['success' => false, 'message' => 'Ungültige Antwort']);
             }
         } else {
-            echo json_encode(['success' => false, 'message' => 'Verbindungsfehler (HTTP '.$httpCode.')']);
+            echo json_encode(['success' => false, 'message' => 'Fehler: HTTP ' . $httpCode]);
         }
         break;
-	case 'check_update':
-    $local = include('version.php');
-    $remoteContent = @file_get_contents($local['remote_url']);
-    
-    if (!$remoteContent) {
-        echo json_encode(['success' => false, 'message' => 'GitHub nicht erreichbar']);
-        exit;
-    }
 
-    // Wir extrahieren die Version aus dem Remote-PHP-Code per Regex
-    preg_match("/'version' => '(.+?)'/", $remoteContent, $matches);
-    $remoteVersion = $matches[1] ?? '0.0.0';
-
-    echo json_encode([
-        'success' => true,
-        'local' => $local['version'],
-        'remote' => $remoteVersion,
-        'update_available' => version_compare($remoteVersion, $local['version'], '>')
-    ]);
-    break;
-
-case 'install_update':
-    // 1. ZIP von GitHub laden (Die automatische ZIP-Funktion von GitHub)
-    $repoZip = "https://github.com/olpo24/VantixDash/archive/refs/heads/main.zip";
-    $tempZip = __DIR__ . '/data/update_temp.zip';
-    
-    if (!copy($repoZip, $tempZip)) {
-        echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
-        exit;
-    }
-
-    $zip = new ZipArchive;
-    if ($zip->open($tempZip) === TRUE) {
-        // Entpacken in einen Unterordner
-        $extractPath = __DIR__ . '/data/temp_extract/';
-        $zip->extractTo($extractPath);
-        $zip->close();
-
-        // GitHub packt alles in VantixDash-main/, wir müssen die Dateien eine Ebene hochschieben
-        $source = $extractPath . 'VantixDash-main/';
+    case 'check_update':
+        $local = include($versionFile);
+        $useBeta = isset($_GET['beta']) && $_GET['beta'] === 'true';
         
-        // Dateien kopieren (außer config.php und data/)
-        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
-        
-        foreach ($files as $file) {
-            $destPath = __DIR__ . '/' . $files->getSubPathName();
-            if ($file->isDir()) {
-                if (!is_dir($destPath)) mkdir($destPath);
-            } else {
-                // Sicherheitscheck: Überschreibe niemals deine config.php oder den data-Ordner!
-                if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
-                    copy($file, $destPath);
-                }
-            }
+        if ($useBeta) {
+            // BETA: Raw-Datei vom beta Branch (Cache-Busting inkludiert)
+            $remoteUrl = "https://raw.githubusercontent.com/olpo24/VantixDash/beta/version.php?t=" . time();
+            $remoteContent = @file_get_contents($remoteUrl);
+            preg_match("/'version' => '(.+?)'/", $remoteContent, $matches);
+            $remoteVersion = $matches[1] ?? '0.0.0';
+            $downloadUrl = "https://github.com/olpo24/VantixDash/archive/refs/heads/beta.zip";
+        } else {
+            // STABLE: GitHub Releases API
+            $opts = ["http" => ["header" => "User-Agent: VantixDash-Updater\r\n"]];
+            $context = stream_context_create($opts);
+            $apiUrl = "https://api.github.com/repos/olpo24/VantixDash/releases/latest";
+            $apiRes = @file_get_contents($apiUrl, false, $context);
+            $release = json_decode($apiRes, true);
+            
+            $remoteVersion = isset($release['tag_name']) ? str_replace('v', '', $release['tag_name']) : '0.0.0';
+            $downloadUrl = $release['zipball_url'] ?? '';
         }
 
-        // Aufräumen
-        unlink($tempZip);
-        // (Ordner löschen Funktion hier optional)
-        
-        echo json_encode(['success' => true, 'message' => 'Update erfolgreich installiert!']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'ZIP konnte nicht geöffnet werden']);
-    }
-    break;
+        echo json_encode([
+            'success' => true,
+            'local' => $local['version'],
+            'remote' => $remoteVersion,
+            'update_available' => version_compare($remoteVersion, $local['version'], '>'),
+            'download_url' => $downloadUrl,
+            'mode' => $useBeta ? 'Beta' : 'Stable'
+        ]);
+        break;
+
+    case 'install_update':
+        $downloadUrl = $_POST['url'] ?? '';
+        if (empty($downloadUrl)) {
+            echo json_encode(['success' => false, 'message' => 'Keine URL']);
+            exit;
+        }
+
+        $tempZip = $dataDir . '/update_temp.zip';
+        $extractPath = $dataDir . '/temp_extract/';
+
+        if (!copy($downloadUrl, $tempZip)) {
+            echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
+            exit;
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($tempZip) === TRUE) {
+            if (!is_dir($extractPath)) mkdir($extractPath, 0755, true);
+            $zip->extractTo($extractPath);
+            $zip->close();
+
+            // Root-Ordner im ZIP finden (GitHub Struktur)
+            $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
+            $sourceRoot = reset($subDirs);
+
+            if ($sourceRoot) {
+                $files = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($sourceRoot, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+
+                foreach ($files as $file) {
+                    $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
+                    $destPath = __DIR__ . $relativePath;
+
+                    if ($file->isDir()) {
+                        if (!is_dir($destPath)) mkdir($destPath, 0755, true);
+                    } else {
+                        // Schutz von config.php und data Ordner
+                        if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
+                            copy($file->getRealPath(), $destPath);
+                        }
+                    }
+                }
+            }
+
+            // Aufräumen
+            unlink($tempZip);
+            // Hilfsfunktion zum rekursiven Löschen des Temp-Ordners könnte hier folgen
+            
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'ZIP konnte nicht entpackt werden']);
+        }
+        break;
 }
