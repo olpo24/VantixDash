@@ -17,7 +17,7 @@
                             <i class="ph ph-wrench me-2"></i>System-Update
                         </h5>
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="beta-toggle" onchange="App.checkUpdates()">
+                            <input class="form-check-input" type="checkbox" id="beta-toggle" onchange="App.checkAppUpdates()">
                             <label class="form-check-label small text-muted" for="beta-toggle">Beta-Kanal</label>
                         </div>
                     </div>
