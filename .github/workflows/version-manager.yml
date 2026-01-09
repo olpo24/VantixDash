@@ -1,45 +1,40 @@
-name: VantixDash Version Manager
+name: VantixDash Release Builder
 
 on:
   release:
     types: [published]
-  push:
-    branches:
-      - beta
 
 jobs:
-  update-version:
+  build-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
-      - name: Set Version for Release
-        if: github.event_name == 'release'
+      - name: Update version.php
         run: |
           VERSION_TAG=${{ github.event.release.tag_name }}
           VERSION_CLEAN=${VERSION_TAG#v}
-          echo "NEW_VERSION=$VERSION_CLEAN" >> $GITHUB_ENV
+          sed -i "s/'version' => '.*'/'version' => '$VERSION_CLEAN'/" version.php
 
-      - name: Set Version for Beta Push
-        if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
+      - name: Create Release Zip
         run: |
-          # Holt die Basis-Version aus der Datei und hängt Beta-Infos an
-          BASE_VERSION=$(php -r "$v = include 'version.php'; echo str_replace('-beta', '', explode('.', $v['version'])[0].'.'.explode('.', $v['version'])[1].'.'.explode('.', $v['version'])[2]);")
-          DATE=$(date +'%Y%m%d')
-          echo "NEW_VERSION=${BASE_VERSION}-beta.${DATE}" >> $GITHUB_ENV
+          VERSION_TAG=${{ github.event.release.tag_name }}
+          # Erstellt den Dateinamen, z.B. VantixDash_v1.0.9.zip
+          ZIP_NAME="VantixDash_${VERSION_TAG}.zip"
+          
+          # Wir speichern den Namen für den nächsten Step
+          echo "FINAL_ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+          
+          # Zippen: -r (rekursiv), -j (optional: falls man keine Pfade will, hier aber mit Pfaden besser)
+          # Ausschluss von Git-Daten, GitHub Actions und dem lokalen Daten-Ordner
+          zip -r "$ZIP_NAME" . -x "*.git*" ".github*" "data/*" "config.php"
 
-      - name: Update version.php file
-        run: |
-          echo "Updating version.php to ${{ env.NEW_VERSION }}"
-          sed -i "s/'version' => '.*'/'version' => '${{ env.NEW_VERSION }}'/" version.php
-
-      - name: Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
         with:
-          commit_message: "chore: bump version to ${{ env.NEW_VERSION }} [skip ci]"
-          branch: ${{ github.event_name == 'push' && 'beta' || 'main' }}
+          files: ${{ env.FINAL_ZIP_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
