@@ -73,7 +73,44 @@ const App = {
             }
         }
     },
+/**
+     * Berechnet die Statistiken und befüllt die Dashboard-Karten
+     */
+    updateStats() {
+        // 1. Gesamtzahl der Seiten
+        const totalSitesEl = document.getElementById('stat-total-sites');
+        if (totalSitesEl) {
+            totalSitesEl.innerText = this.sites.length;
+        }
 
+        // 2. Updates zählen (Plugins, Themes, Core)
+        let plugins = 0, themes = 0, core = 0;
+        this.sites.forEach(site => {
+            if (site.updates) {
+                plugins += (parseInt(site.updates.plugins) || 0);
+                themes += (parseInt(site.updates.themes) || 0);
+                core += (parseInt(site.updates.core) || 0);
+            }
+        });
+
+        const detailedUpdatesEl = document.getElementById('stat-detailed-updates');
+        if (detailedUpdatesEl) {
+            if (plugins + themes + core > 0) {
+                detailedUpdatesEl.innerHTML = `
+                    <span class="text-warning">${plugins} Plugins</span>, 
+                    <span class="text-info">${themes} Themes</span>`;
+            } else {
+                detailedUpdatesEl.innerText = "Alle aktuell";
+            }
+        }
+
+        // 3. Letzter Check (Uhrzeit vom ersten Eintrag nehmen oder aktuell)
+        const lastCheckEl = document.getElementById('last-update-time');
+        if (lastCheckEl) {
+            const now = new Date();
+            lastCheckEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+    },
     /**
      * Neue Webseite hinzufügen
      */
