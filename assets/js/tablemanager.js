@@ -7,8 +7,8 @@ const TableManager = {
     /**
      * Dashboard Haupttabelle rendern
      */
-    renderDashboardTable(sites) {
-        const tbody = document.getElementById('sites-tbody');
+renderDashboardTable(sites) {
+        const tbody = document.getElementById('sites-tbody'); 
         if (!tbody) return;
         tbody.innerHTML = '';
 
@@ -24,6 +24,9 @@ const TableManager = {
 
             const statusClass = site.status === 'online' ? 'bg-success' : 'bg-danger';
             const totalUpdates = (site.updates?.core || 0) + (site.updates?.plugins || 0) + (site.updates?.themes || 0);
+            
+            // Datum formatieren über die App-Funktion
+            const formattedDate = App.formatDate(site.last_check);
 
             tr.innerHTML = `
                 <td>
@@ -42,8 +45,8 @@ const TableManager = {
                         ? `<span class="badge bg-warning text-dark"><i class="ph ph-arrow-fat-up"></i> ${totalUpdates} Updates</span>` 
                         : '<span class="badge bg-light text-success border">Aktuell</span>'}
                 </td>
-                <td class="text-muted small">${site.last_check || 'Nie'}</td>
-                <td class="text-end" onclick="event.stopPropagation()">
+                <td class="text-muted small">${formattedDate}</td>
+                <td onclick="event.stopPropagation()">
                     <button class="btn-icon me-1" onclick="App.refreshSite('${site.id}', event)" title="Jetzt prüfen">
                         <i class="ph ph-arrows-clockwise"></i>
                     </button>
