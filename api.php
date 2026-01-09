@@ -40,7 +40,7 @@ switch ($action) {
 
         $local = include($versionFile);
         $localVersion = $local['version'] ?? '0.0.0';
-        $useBeta = (isset($_GET['beta']) && $_GET['beta'] === 'true');
+       $useBeta = (isset($_GET['beta']) && ($_GET['beta'] === 'true' || $_GET['beta'] === '1'));
         
         $remoteVersion = '0.0.0';
         $downloadUrl = '';
