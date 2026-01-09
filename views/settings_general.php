@@ -1,39 +1,29 @@
-<div class="card shadow-sm p-4 border-0">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="h5 fw-bold mb-1">System-Aktualisierung</h3>
-            <p class="text-muted small mb-0">Aktuelle Version: v<?php echo (include 'version.php')['version']; ?></p>
-        </div>
-        <div class="form-check form-switch bg-light p-2 px-3 rounded border">
-            <input class="form-check-input" type="checkbox" id="beta-toggle" onchange="App.checkUpdates()">
-            <label class="form-check-label small fw-bold ms-2" for="beta-toggle">Beta-Kanal</label>
-        </div>
+<div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-4">Allgemeine Einstellungen</h5>
+        <div class="card shadow-sm p-4">
+    <h3 class="h5 fw-bold mb-3"><i class="ph ph-git-branch me-2"></i>System Update</h3>
+    <div id="update-status" class="alert alert-info border-0">
+        Prüfe auf Updates...
     </div>
-
-    <div id="update-status" class="alert alert-info border-0 py-3">
-        <i class="ph ph-circle-notch ph-spin me-2"></i> Initialisiere Update-Check...
-    </div>
-
-    <input type="hidden" id="pending-download-url">
-
-    <div id="update-actions" style="display: none;" class="mt-3">
-        <div class="card bg-light border-0 p-3 mb-3">
-            <p class="small mb-0 text-muted">
-                <i class="ph ph-info me-1"></i> 
-                Das Update überschreibt Systemdateien. Deine <strong>config.php</strong> und der <strong>data/</strong> Ordner sind geschützt.
-            </p>
-        </div>
-        <button id="start-update-btn" class="btn btn-primary px-4" onclick="App.runUpdate()">
-            <i class="ph ph-download-simple me-2"></i> Update jetzt installieren
+    <div id="update-actions" style="display: none;">
+        <p class="small text-muted">Ein neues Update ist verfügbar. Bitte sichere deine Daten, bevor du fortfährst.</p>
+        <input type="hidden" id="pending-download-url">
+		<button id="start-update-btn" class="btn btn-primary" onclick="App.runUpdate()">
+            <i class="ph ph-download-simple me-2"></i> Jetzt installieren
         </button>
     </div>
 </div>
 
 <script>
-    // Automatischer Check beim Laden der Seite
+    // Wir warten, bis das Dokument bereit ist UND die App geladen wurde
     document.addEventListener('DOMContentLoaded', () => {
-        if (typeof App !== 'undefined') {
+        if (typeof App !== 'undefined' && App.checkUpdates) {
             App.checkUpdates();
+        } else {
+            console.error("VantixDash App konnte nicht geladen werden.");
         }
     });
 </script>
+    </div>
+</div>
