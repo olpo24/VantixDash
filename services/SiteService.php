@@ -77,47 +77,78 @@ class SiteService {
     }
 
     public function checkAppUpdate($beta = false) {
-    $currentVersion = '1.0.0'; 
+    $currentVersion = '1.0.0'; // Deine aktuelle Version
     $repo = "olpo24/VantixDash";
     
-    // Wenn Beta aktiv ist, fragen wir alle Releases ab, sonst nur das letzte Stable
+    // URL wählen: /releases für alle (inkl. Beta), /latest nur für Stable
     $url = $beta 
         ? "https://api.github.com/repos/$repo/releases" 
         : "https://api.github.com/repos/$repo/releases/latest";
 
-    $ch = curl_init($url);
+    $ch = curl_init();
     curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_USERAGENT => 'VantixDash-Updater',
-        CURLOPT_TIMEOUT => 10
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_HTTPHEADER => [
+            'User-Agent: VantixDash-Updater', // GitHub verlangt zwingend einen User-Agent
+            'Accept: application/vnd.github.v3+json' // Best Practice für GitHub API
+        ]
     ]);
+
     $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if (!$response) return ['success' => false, 'message' => 'API Error'];
+    // API-Fehler abfangen
+    if ($httpCode !== 200 || !$response) {
+        return [
+            'success' => false, 
+            'message' => 'GitHub API Fehler (Status: ' . $httpCode . ')',
+            'current' => $currentVersion,
+            'remote' => $currentVersion
+        ];
+    }
 
     $data = json_decode($response, true);
     
-    // Logik für Beta: Wir nehmen das erste Element aus der Liste (neuestes)
+    // Das Release-Objekt finden
+    $release = null;
     if ($beta && is_array($data) && !empty($data)) {
+        // Bei /releases nehmen wir das oberste (neueste) Element
         $release = $data[0]; 
-    } else {
+    } elseif (!$beta && isset($data['tag_name'])) {
+        // Bei /latest ist das Objekt direkt die Antwort
         $release = $data;
     }
 
-    $remoteVersion = isset($release['tag_name']) ? str_replace('v', '', $release['tag_name']) : $currentVersion;
+    // Wenn kein Release gefunden wurde, Fallback
+    if (!$release) {
+        return [
+            'success' => true, 
+            'update_available' => false, 
+            'current' => $currentVersion, 
+            'remote' => $currentVersion
+        ];
+    }
+
+    // Version säubern (v1.4.3-beta -> 1.4.3-beta)
+    $remoteVersion = str_replace('v', '', $release['tag_name']);
+
+    // Vergleich (version_compare versteht auch "beta" Suffixe)
+    $updateAvailable = version_compare($remoteVersion, $currentVersion, '>');
 
     return [
         'success' => true,
-        'update_available' => version_compare($remoteVersion, $currentVersion, '>'),
+        'update_available' => $updateAvailable,
         'current' => $currentVersion,
         'remote' => $remoteVersion,
-        'is_beta' => $release['prerelease'] ?? false,
+        'is_beta' => ($release['prerelease'] ?? false),
         'download_url' => $release['zipball_url'] ?? '',
         'changelog' => $release['body'] ?? ''
     ];
 }
-
     public function installUpdate($url) {
         $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
         $content = @file_get_contents($url, false, stream_context_create([
