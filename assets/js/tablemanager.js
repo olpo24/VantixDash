@@ -20,12 +20,30 @@ const TableManager = {
         sites.forEach(site => {
             const tr = document.createElement('tr');
             tr.className = 'cursor-pointer';
-            tr.onclick = () => console.log("Details für Seite:", site.id);
+            
+            // Fix: Modal öffnen anstatt nur Console Log
+            tr.onclick = () => this.showDetails(site.id);
 
             const statusClass = site.status === 'online' ? 'bg-success' : 'bg-danger';
-            const totalUpdates = (site.updates?.core || 0) + (site.updates?.plugins || 0) + (site.updates?.themes || 0);
             
-            // Datum formatieren über die App-Funktion
+            // --- Update-Logik verfeinern ---
+            const u = site.updates || { core: 0, plugins: 0, themes: 0 };
+            const totalUpdates = (parseInt(u.core) || 0) + (parseInt(u.plugins) || 0) + (parseInt(u.themes) || 0);
+            
+            let updateHTML = '';
+            if (totalUpdates > 0) {
+                let details = [];
+                if (parseInt(u.core) > 0) details.push(`<i class="ph ph-cpu" title="Core"></i>`);
+                if (parseInt(u.plugins) > 0) details.push(`<i class="ph ph-plug" title="Plugins"></i> ${u.plugins}`);
+                if (parseInt(u.themes) > 0) details.push(`<i class="ph ph-palette" title="Themes"></i> ${u.themes}`);
+                
+                updateHTML = `<span class="badge bg-warning text-dark d-inline-flex align-items-center gap-1">
+                                <i class="ph ph-arrow-fat-up"></i> ${details.join(' · ')}
+                              </span>`;
+            } else {
+                updateHTML = '<span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">Aktuell</span>';
+            }
+
             const formattedDate = App.formatDate(site.last_check);
 
             tr.innerHTML = `
@@ -40,11 +58,7 @@ const TableManager = {
                 </td>
                 <td><span class="badge bg-light text-dark border">${Utils.escapeHTML(site.version || '-')}</span></td>
                 <td><span class="text-muted">${Utils.escapeHTML(site.php || '-')}</span></td>
-                <td>
-                    ${totalUpdates > 0 
-                        ? `<span class="badge bg-warning text-dark"><i class="ph ph-arrow-fat-up"></i> ${totalUpdates} Updates</span>` 
-                        : '<span class="badge" style="background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">Aktuell</span>'}
-                </td>
+                <td>${updateHTML}</td>
                 <td class="text-muted small">${formattedDate}</td>
                 <td onclick="event.stopPropagation()">
                     <button class="btn-icon" onclick="App.refreshSite('${site.id}', event)" title="Jetzt prüfen">
@@ -57,6 +71,29 @@ const TableManager = {
             `;
             tbody.appendChild(tr);
         });
+    },
+
+    /**
+     * Öffnet das Detail-Modal für eine Webseite
+     */
+    showDetails(siteId) {
+        const site = App.sites.find(s => s.id === siteId);
+        if (!site) return;
+
+        // Falls du ein HTML-Element für das Modal hast (z.B. id="siteDetailsModal")
+        const modal = document.getElementById('siteDetailsModal');
+        if (modal) {
+            // Hier werden die Daten ins Modal geschrieben
+            document.getElementById('modal-site-name').innerText = site.name;
+            document.getElementById('modal-site-url').innerText = site.url;
+            
+            // Modal anzeigen (Native HTML Dialog API)
+            modal.showModal();
+        } else {
+            console.warn("Modal 'siteDetailsModal' nicht im HTML gefunden.");
+            // Fallback für Testzwecke:
+            alert(`Details für ${site.name}\nIP: ${site.ip || 'Unbekannt'}\nPHP: ${site.php}`);
+        }
     },
 
     /**
