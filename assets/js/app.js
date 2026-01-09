@@ -49,7 +49,7 @@ const App = {
         }
 
         try {
-            const response = await fetch('api.php?action=get_sites&t=' + Date.now());
+            const response = await fetch('api.php?action=get_sites');
             if (!response.ok) throw new Error("API-Abruf fehlgeschlagen");
             
             this.sites = await response.json();
@@ -97,10 +97,11 @@ const App = {
                 document.getElementById('addSiteModal').close();
                 form.reset();
                 
+                // Key im Erfolgs-Modal anzeigen
                 document.getElementById('generatedKeyDisplay').innerText = result.api_key;
                 document.getElementById('keySuccessModal').showModal();
                 
-                this.loadSites();
+                this.loadSites(); // UI im Hintergrund aktualisieren
             } else {
                 alert('Fehler: ' + result.message);
             }
@@ -289,17 +290,19 @@ const App = {
         }
     },
 
-    /**
-     * Installiert das System-Update unter Verwendung der bereitgestellten URL
+   /**
+     * Installiert das System-Update
      */
     async runUpdate() {
+        // Die URL aus dem versteckten Feld holen, das in checkUpdates() befüllt wurde
         const downloadUrl = document.getElementById('pending-download-url')?.value;
+        
         if (!downloadUrl) {
-            alert("Keine Update-URL gefunden. Bitte prüfen Sie erneut auf Updates.");
+            alert("Fehler: Keine Download-URL gefunden. Bitte prüfe erst erneut auf Updates.");
             return;
         }
 
-        if (!confirm("Update jetzt installieren? Einstellungen (config.php) bleiben erhalten, Systemdateien werden überschrieben.")) return;
+        if (!confirm("Update jetzt installieren? Deine Seiten-Daten bleiben erhalten.")) return;
         
         const btn = document.getElementById('start-update-btn');
         if (btn) {
@@ -307,28 +310,31 @@ const App = {
             btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
         }
 
-        const formData = new FormData();
-        formData.append('url', downloadUrl);
-
         try {
+            // Die URL als POST-Parameter senden
+            const formData = new FormData();
+            formData.append('url', downloadUrl);
+
             const response = await fetch('api.php?action=install_update', {
                 method: 'POST',
                 body: formData
             });
+            
             const data = await response.json();
+            
             if (data.success) {
                 alert("Update erfolgreich abgeschlossen!");
                 window.location.reload();
             } else {
-                alert("Fehler: " + data.message);
+                alert("Fehler beim Entpacken: " + data.message);
             }
         } catch (e) {
-            alert("Update fehlgeschlagen. Bitte prüfen Sie die Server-Berechtigungen.");
+            console.error(e);
+            alert("Verbindung zur API fehlgeschlagen.");
         } finally {
             if (btn) btn.disabled = false;
         }
-    }
-};
+    },
 
 // Startpunkt
 document.addEventListener('DOMContentLoaded', () => App.init());
