@@ -1,5 +1,5 @@
 /**
- * VantixDash - Vollständige Anwendungslogik
+ * VantixDash - Vollständige & Sichere Anwendungslogik
  */
 
 const Utils = {
@@ -14,7 +14,6 @@ const Utils = {
 const App = {
     sites: [],
     currentVersion: '0.0.0',
-    updateData: null, // Speichert Update-Informationen
 
     init() {
         // Event-Listener für das Hinzufügen von Seiten
@@ -29,13 +28,40 @@ const App = {
     },
 
     /**
+     * ZENTRALE SICHERE FETCH-METHODE (CSRF-SCHUTZ)
+     */
+    async secureFetch(action, options = {}) {
+        const url = `api.php?action=${action}`;
+        
+        // CSRF-Token aus Meta-Tag holen
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        // Header vorbereiten
+        if (!options.headers) options.headers = {};
+        if (csrfToken) {
+            options.headers['X-CSRF-Token'] = csrfToken;
+        }
+
+        const response = await fetch(url, options);
+        
+        if (response.status === 403) {
+            alert("Sicherheitsfehler: CSRF-Token ungültig. Bitte lade die Seite neu.");
+            throw new Error("CSRF Invalid");
+        }
+
+        if (!response.ok) throw new Error('Netzwerk-Antwort war nicht ok');
+        return await response.json();
+    },
+
+    /**
      * DATEN-MANAGEMENT
      */
     async loadSites() {
         if (typeof TableManager !== 'undefined') TableManager.setLoading(true);
         try {
-            const response = await fetch('api.php?action=get_sites');
-            this.sites = await response.json();
+            // GET-Anfragen benötigen kein CSRF-Token in der Validierung, 
+            // laufen aber über die gleiche Methode für Konsistenz
+            this.sites = await this.secureFetch('get_sites');
             this.updateStats();
             if (typeof TableManager !== 'undefined') {
                 TableManager.renderDashboardTable(this.sites);
@@ -82,11 +108,12 @@ const App = {
         try {
             const formData = new FormData();
             formData.append('id', siteId);
-            const response = await fetch('api.php?action=refresh_site', {
+            
+            const result = await this.secureFetch('refresh_site', {
                 method: 'POST',
                 body: formData
             });
-            const result = await response.json();
+
             if (result.success) {
                 this.sites = this.sites.map(s => s.id === siteId ? result.site : s);
                 this.updateStats();
@@ -100,16 +127,17 @@ const App = {
     },
 
     async deleteSite(siteId) {
-        if (!confirm('Möchtest du diese Webseite wirklich aus dem Dashboard löschen?')) return;
+        if (!confirm('Möchtest du diese Webseite wirklich löschen?')) return;
 
         try {
             const formData = new FormData();
             formData.append('id', siteId);
-            const response = await fetch('api.php?action=delete_site', {
+            
+            const result = await this.secureFetch('delete_site', {
                 method: 'POST',
                 body: formData
             });
-            const result = await response.json();
+
             if (result.success) {
                 this.loadSites();
             }
@@ -122,6 +150,7 @@ const App = {
         const site = this.sites.find(s => s.id === siteId);
         if (!site) return;
         try {
+            // Direkte WP-API Anfrage (API-Key basiert, kein CSRF für externe Domain nötig)
             const response = await fetch(`${site.url}/wp-json/vantixdash/v1/login`, {
                 headers: { 'X-Vantix-Secret': site.api_key }
             });
@@ -140,15 +169,13 @@ const App = {
         e.preventDefault();
         const formData = new FormData(e.target);
         try {
-            const response = await fetch('api.php?action=add_site', {
+            const result = await this.secureFetch('add_site', {
                 method: 'POST',
                 body: formData
             });
-            const result = await response.json();
             if (result.success) {
                 e.target.reset();
                 this.loadSites();
-                // Falls du ein <dialog> oder CSS-Modal für "Hinzufügen" nutzt:
                 const modal = document.getElementById('addSiteModal');
                 if (modal && modal.close) modal.close();
             }
@@ -158,48 +185,32 @@ const App = {
     },
 
     /**
-     * VANTIXDASH UPDATE PROZESS (Das Dashboard selbst)
+     * VANTIXDASH UPDATE PROZESS
      */
     async checkAppUpdates() {
         const updateBanner = document.getElementById('app-update-banner');
         const betaMode = localStorage.getItem('vantix_beta') === 'true';
 
         try {
-            const response = await fetch(`api.php?action=check_update&beta=${betaMode}`);
-            const data = await response.json();
-
-            console.log('Update Check Response:', data); // Debug-Log
+            const data = await this.secureFetch(`check_update&beta=${betaMode}`);
 
             if (data.success && data.update_available) {
-                // Speichere die kompletten Update-Daten
-                this.updateData = data;
-
                 if (updateBanner) {
                     updateBanner.style.display = 'flex';
                     document.getElementById('new-version-tag').innerText = `v${data.remote}`;
                     
                     const updateBtn = document.getElementById('start-update-btn');
                     if (updateBtn) {
-                        // Verwende die gespeicherten updateData statt direkt die URL
-                        updateBtn.onclick = () => this.installAppUpdate();
+                        updateBtn.onclick = () => this.installAppUpdate(data.download_url);
                     }
                 }
-            } else if (updateBanner) {
-                updateBanner.style.display = 'none';
             }
         } catch (error) {
-            console.error("Update-Check fehlgeschlagen:", error);
+            console.error("Update-Check fehlgeschlagen");
         }
     },
 
-    async installAppUpdate() {
-        // Prüfe ob Update-Daten vorhanden sind
-        if (!this.updateData || !this.updateData.download_url) {
-            alert('Fehler: Keine Update-Informationen verfügbar. Bitte versuche es erneut.');
-            console.error('UpdateData:', this.updateData);
-            return;
-        }
-
+    async installAppUpdate(url) {
         const btn = document.getElementById('start-update-btn');
         if (btn) {
             btn.disabled = true;
@@ -208,24 +219,20 @@ const App = {
 
         try {
             const formData = new FormData();
-            formData.append('url', this.updateData.download_url);
+            formData.append('url', url);
             
-            console.log('Installing update from:', this.updateData.download_url); // Debug-Log
-            
-            const response = await fetch('api.php?action=install_update', {
+            const result = await this.secureFetch('install_update', {
                 method: 'POST',
                 body: formData
             });
-            const result = await response.json();
 
             if (result.success) {
-                alert('VantixDash wurde erfolgreich aktualisiert! Die Seite wird neu geladen.');
+                alert('VantixDash wurde erfolgreich aktualisiert!');
                 window.location.reload();
             } else {
                 throw new Error(result.message || 'Installation fehlgeschlagen');
             }
         } catch (error) {
-            console.error('Update Error:', error);
             alert('Fehler beim Update: ' + error.message);
             if (btn) {
                 btn.disabled = false;
