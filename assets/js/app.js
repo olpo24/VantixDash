@@ -240,36 +240,52 @@ const App = {
     },
 
     /**
-     * Prüft auf System-Updates (Stable via GitHub Release API / Beta via beta-Branch)
+     * Prüft auf System-Updates via GitHub (unter Berücksichtigung des Beta-Toggles)
      */
     async checkUpdates() {
         const statusDiv = document.getElementById('update-status');
         if (!statusDiv) return;
 
-        const isBeta = document.getElementById('beta-toggle')?.checked || false;
+        // 1. Prüfen, ob der Beta-Toggle aktiv ist
+        const betaToggle = document.getElementById('beta-toggle');
+        const isBeta = betaToggle ? betaToggle.checked : false;
+
+        // Optisches Feedback, dass geprüft wird
         statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
 
         try {
+            // 2. Beta-Parameter und Zeitstempel (gegen Cache) an API senden
             const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
             const data = await response.json();
             
+            // 3. Fallback für den Modus-Text (falls mode mal fehlen sollte)
+            const modeName = data.mode || (isBeta ? 'Beta' : 'Stable');
+
             if (data.update_available) {
                 statusDiv.className = "alert alert-warning border-0 d-flex align-items-center justify-content-between";
-                statusDiv.innerHTML = `<div><strong>${data.mode}-Update verfügbar!</strong> Version ${data.remote} ist bereit. (Lokal: ${data.local})</div>`;
+                statusDiv.innerHTML = `
+                    <div>
+                        <strong>${modeName}-Update verfügbar!</strong> <br>
+                        <small>Version ${data.remote} ist bereit (Installiert: ${data.local})</small>
+                    </div>`;
                 
+                // Download-URL für den install-Prozess zwischenspeichern
+                const pendingInput = document.getElementById('pending-download-url');
+                if (pendingInput) pendingInput.value = data.download_url;
+
                 const actions = document.getElementById('update-actions');
-                const urlInput = document.getElementById('pending-download-url');
-                
                 if (actions) actions.style.display = 'block';
-                if (urlInput) urlInput.value = data.download_url;
             } else {
                 statusDiv.className = "alert alert-success border-0";
-                statusDiv.innerHTML = `<i class="ph ph-check-circle me-2"></i> VantixDash ${data.mode} ist aktuell (v${data.local})`;
+                // Hier wird jetzt data.mode genutzt:
+                statusDiv.innerHTML = `<i class="ph ph-check-circle me-2"></i> VantixDash ${modeName} ist auf dem neuesten Stand (v${data.local})`;
+                
                 const actions = document.getElementById('update-actions');
                 if (actions) actions.style.display = 'none';
             }
         } catch (e) {
-            statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
+            console.error("Update-Fehler:", e);
+            statusDiv.innerHTML = '<i class="ph ph-warning me-2"></i> Fehler bei der Update-Prüfung.';
         }
     },
 
