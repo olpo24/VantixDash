@@ -215,15 +215,32 @@ switch ($action) {
     case 'install_update':
         $downloadUrl = $_POST['url'] ?? '';
         if (empty($downloadUrl)) {
-            echo json_encode(['success' => false, 'message' => 'Keine URL']);
+            echo json_encode(['success' => false, 'message' => 'Keine URL übergeben']);
             exit;
         }
 
         $tempZip = $dataDir . '/update_temp.zip';
         $extractPath = $dataDir . '/temp_extract/';
 
-        if (!copy($downloadUrl, $tempZip)) {
-            echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
+        // --- KORREKTUR: Download mit User-Agent ---
+        $opts = [
+            "http" => [
+                "method" => "GET",
+                "header" => "User-Agent: VantixDash-Updater\r\n" // ZWINGEND für GitHub API
+            ]
+        ];
+        $context = stream_context_create($opts);
+        
+        // Dateiinhalt laden und lokal speichern
+        $fileContent = @file_get_contents($downloadUrl, false, $context);
+        
+        if ($fileContent === false) {
+            echo json_encode(['success' => false, 'message' => 'Download von GitHub fehlgeschlagen (Check User-Agent/URL)']);
+            exit;
+        }
+
+        if (!file_put_contents($tempZip, $fileContent)) {
+            echo json_encode(['success' => false, 'message' => 'ZIP konnte nicht lokal gespeichert werden']);
             exit;
         }
 
