@@ -8,7 +8,7 @@ const TableManager = {
      * Dashboard Haupttabelle rendern
      */
     renderDashboardTable(sites) {
-        const tbody = document.getElementById('sites-tbody'');
+        const tbody = document.getElementById('sites-tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
 
