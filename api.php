@@ -4,30 +4,26 @@
  * Backend-Schnittstelle für VantixDash
  */
 
-// Fehlerberichterstattung für Debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 0); 
 
 header('Content-Type: application/json');
 
-// 1. PFADE UND BASIS-KONFIGURATION
+// 1. PFADE UND KONFIGURATION
 $baseDir = __DIR__;
 $dataDir = $baseDir . '/data';
 $versionFile = $baseDir . '/version.php';
 $sitesFile = $dataDir . '/sites.json';
 
-// Sicherstellen, dass das Datenverzeichnis existiert
 if (!is_dir($dataDir)) {
     mkdir($dataDir, 0755, true);
 }
 
-// Hilfsfunktion zum Laden der Seiten
 function getSites($file) {
     if (!file_exists($file)) return [];
     return json_decode(file_get_contents($file), true) ?: [];
 }
 
-// Hilfsfunktion zum Speichern der Seiten
 function saveSites($file, $sites) {
     return file_put_contents($file, json_encode(array_values($sites), JSON_PRETTY_PRINT));
 }
@@ -35,8 +31,6 @@ function saveSites($file, $sites) {
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
-
-    // --- SYSTEM UPDATES ---
 
     case 'check_update':
         if (!file_exists($versionFile)) {
@@ -50,42 +44,61 @@ switch ($action) {
         
         $remoteVersion = '0.0.0';
         $downloadUrl = '';
+        $modeName = $useBeta ? 'Beta' : 'Stable';
 
         try {
             $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-App\r\n"]];
             $context = stream_context_create($opts);
 
             if ($useBeta) {
-                // Beta via GitHub Branch
-                $apiUrl = "https://raw.githubusercontent.com/olpo24/VantixDash/beta/version.php";
+                // BETA-LOGIK: Suche in allen Releases nach dem neuesten "Pre-release"
+                $apiUrl = "https://api.github.com/repos/olpo24/VantixDash/releases";
                 $content = @file_get_contents($apiUrl, false, $context);
+                $foundBetaAsset = false;
+
                 if ($content) {
-                    preg_match("/'version' => '(.*)'/", $content, $matches);
-                    $remoteVersion = $matches[1] ?? '0.0.0';
-                    $downloadUrl = "https://github.com/olpo24/VantixDash/archive/refs/heads/beta.zip";
+                    $releases = json_decode($content, true);
+                    foreach ($releases as $release) {
+                        if ($release['prerelease'] === true) {
+                            $remoteVersion = str_replace('v', '', $release['tag_name'] ?? '0.0.0');
+                            foreach ($release['assets'] as $asset) {
+                                if (strpos($asset['name'], 'VantixDash_') === 0) {
+                                    $downloadUrl = $asset['browser_download_url'];
+                                    $foundBetaAsset = true;
+                                    break;
+                                }
+                            }
+                            break; 
+                        }
+                    }
+                }
+
+                // FALLBACK für Beta: Falls kein Pre-Release gefunden wurde, nimm den Branch
+                if (!$foundBetaAsset) {
+                    $apiUrl = "https://raw.githubusercontent.com/olpo24/VantixDash/beta/version.php";
+                    $content = @file_get_contents($apiUrl, false, $context);
+                    if ($content) {
+                        preg_match("/'version' => '(.*)'/", $content, $matches);
+                        $remoteVersion = $matches[1] ?? '0.0.0';
+                        $downloadUrl = "https://github.com/olpo24/VantixDash/archive/refs/heads/beta.zip";
+                    }
                 }
             } else {
-                // Stable via GitHub Releases API
+                // STABLE-LOGIK: Nur neuester offizieller Release
                 $apiUrl = "https://api.github.com/repos/olpo24/VantixDash/releases/latest";
                 $content = @file_get_contents($apiUrl, false, $context);
                 if ($content) {
                     $release = json_decode($content, true);
                     $remoteVersion = str_replace('v', '', $release['tag_name'] ?? '0.0.0');
-                    
-                    // Suche nach dem spezifischen Release-Asset (VantixDash_vX.Y.Z.zip)
                     if (!empty($release['assets'])) {
                         foreach ($release['assets'] as $asset) {
-                            if (strpos($asset['name'], 'VantixDash_') === 0 && strpos($asset['name'], '.zip') !== false) {
+                            if (strpos($asset['name'], 'VantixDash_') === 0) {
                                 $downloadUrl = $asset['browser_download_url'];
                                 break;
                             }
                         }
                     }
-                    
-                    // Fallback auf die Standard-Source-ZIP von GitHub
-                    if (empty($downloadUrl)) {
-                        $downloadUrl = $release['zipball_url'] ?? '';
-                    }
+                    if (empty($downloadUrl)) $downloadUrl = $release['zipball_url'] ?? '';
                 }
             }
 
@@ -95,7 +108,7 @@ switch ($action) {
                 'remote' => $remoteVersion,
                 'update_available' => version_compare($remoteVersion, $localVersion, '>'),
                 'download_url' => $downloadUrl,
-                'mode' => $useBeta ? 'Beta' : 'Stable'
+                'mode' => $modeName
             ]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -105,14 +118,13 @@ switch ($action) {
     case 'install_update':
         $downloadUrl = $_POST['url'] ?? '';
         if (empty($downloadUrl)) {
-            echo json_encode(['success' => false, 'message' => 'Pfad zur Update-Datei fehlt']);
+            echo json_encode(['success' => false, 'message' => 'Download-URL fehlt']);
             exit;
         }
 
         $tempZip = $dataDir . '/update_temp.zip';
         $extractPath = $dataDir . '/temp_extract/';
 
-        // 1. Download
         $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-Updater\r\n"]];
         $context = stream_context_create($opts);
         $fileContent = @file_get_contents($downloadUrl, false, $context);
@@ -123,18 +135,15 @@ switch ($action) {
         }
         file_put_contents($tempZip, $fileContent);
 
-        // 2. Entpacken
         $zip = new ZipArchive;
         if ($zip->open($tempZip) === TRUE) {
             if (!is_dir($extractPath)) mkdir($extractPath, 0755, true);
             $zip->extractTo($extractPath);
             $zip->close();
 
-            // Check: Wurde die ZIP von unserem Workflow (direkte Struktur) oder GitHub (Unterordner) erstellt?
+            // Automatische Erkennung der Struktur (Flat vs. GitHub-Subfolder)
+            $sourceRoot = $extractPath;
             $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
-            $sourceRoot = $extractPath; // Standard: Dateien liegen direkt im Extrakt-Pfad
-
-            // Falls es doch einen GitHub-Unterordner gibt (Fallback)
             if (count($subDirs) === 1 && empty(glob($extractPath . '*.php'))) {
                 $sourceRoot = reset($subDirs) . '/';
             }
@@ -153,14 +162,14 @@ switch ($action) {
                     if (!is_dir($destPath)) mkdir($destPath, 0755, true);
                 } else {
                     $filename = basename($destPath);
-                    // Schutz: Config und Datenordner nie überschreiben
+                    // config.php und data-Ordner schützen
                     if ($filename !== 'config.php' && strpos($destPath, '/data/') === false) {
                         copy($file->getRealPath(), $destPath);
                     }
                 }
             }
 
-            // 3. Cleanup
+            // Cleanup
             if (file_exists($tempZip)) unlink($tempZip);
             if (is_dir($extractPath)) {
                 $it = new RecursiveIteratorIterator(
@@ -175,11 +184,9 @@ switch ($action) {
             
             echo json_encode(['success' => true]);
         } else {
-            echo json_encode(['success' => false, 'message' => 'ZIP-Archiv korrupt']);
+            echo json_encode(['success' => false, 'message' => 'ZIP-Fehler']);
         }
         break;
-
-    // --- SEITEN VERWALTUNG ---
 
     case 'get_sites':
         echo json_encode(getSites($sitesFile));
@@ -189,7 +196,6 @@ switch ($action) {
         $sites = getSites($sitesFile);
         $newId = bin2hex(random_bytes(8));
         $apiKey = bin2hex(random_bytes(16));
-
         $newSite = [
             'id' => $newId,
             'name' => $_POST['name'] ?? 'Unbenannt',
@@ -198,73 +204,56 @@ switch ($action) {
             'last_check' => null,
             'status' => 'pending'
         ];
-
         $sites[] = $newSite;
-        if (saveSites($sitesFile, $sites)) {
-            echo json_encode(['success' => true, 'api_key' => $apiKey]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Speichern fehlgeschlagen']);
-        }
+        if (saveSites($sitesFile, $sites)) echo json_encode(['success' => true, 'api_key' => $apiKey]);
+        else echo json_encode(['success' => false]);
         break;
 
     case 'update_site':
         $sites = getSites($sitesFile);
         $id = $_POST['id'] ?? '';
         $found = false;
-
         foreach ($sites as &$site) {
             if ($site['id'] === $id) {
                 $site['name'] = $_POST['name'] ?? $site['name'];
                 $site['url'] = rtrim($_POST['url'] ?? $site['url'], '/');
-                
                 if (isset($_POST['regen_key']) && $_POST['regen_key'] === 'true') {
                     $site['api_key'] = bin2hex(random_bytes(16));
                     $found = $site['api_key'];
-                } else {
-                    $found = true;
-                }
+                } else { $found = true; }
                 break;
             }
         }
-
         if ($found) {
             saveSites($sitesFile, $sites);
             echo json_encode(['success' => true, 'api_key' => ($found === true ? null : $found)]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden']);
-        }
+        } else echo json_encode(['success' => false]);
         break;
 
     case 'delete_site':
         $sites = getSites($sitesFile);
         $id = $_POST['id'] ?? '';
         $filtered = array_filter($sites, fn($s) => $s['id'] !== $id);
-
-        if (saveSites($sitesFile, $filtered)) {
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false]);
-        }
+        if (saveSites($sitesFile, $filtered)) echo json_encode(['success' => true]);
+        else echo json_encode(['success' => false]);
         break;
 
     case 'refresh_site':
         $sites = getSites($sitesFile);
         $id = $_POST['id'] ?? '';
-        
         foreach ($sites as &$site) {
             if ($site['id'] === $id) {
                 $site['last_check'] = date('Y-m-d H:i:s');
                 $site['status'] = 'online';
-                
                 saveSites($sitesFile, $sites);
                 echo json_encode(['success' => true, 'site' => $site]);
                 exit;
             }
         }
-        echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden']);
+        echo json_encode(['success' => false]);
         break;
 
     default:
-        echo json_encode(['success' => false, 'message' => 'Ungültige Aktion']);
+        echo json_encode(['success' => false, 'message' => 'Unknown action']);
         break;
 }
