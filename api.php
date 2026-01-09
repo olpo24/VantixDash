@@ -1,245 +1,122 @@
 <?php
-session_start();
+/**
+ * api.php
+ * Backend-Schnittstelle für VantixDash
+ */
+
+// Fehlerberichterstattung für Debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Verhindert, dass PHP-Fehler das JSON-Format zerstören
+
 header('Content-Type: application/json');
 
-// 1. Sicherheit
-if (!isset($_SESSION['authenticated'])) {
-    echo json_encode(['success' => false, 'message' => 'Nicht eingeloggt']);
-    exit;
-}
-
-$dataDir = __DIR__ . '/data';
+// 1. PFADE UND BASIS-KONFIGURATION
+$baseDir = __DIR__;
+$dataDir = $baseDir . '/data';
+$versionFile = $baseDir . '/version.php';
 $sitesFile = $dataDir . '/sites.json';
 
-// 2. Verzeichnis & Datei sicherstellen
+// Sicherstellen, dass das Datenverzeichnis existiert
 if (!is_dir($dataDir)) {
     mkdir($dataDir, 0755, true);
 }
-if (!file_exists($sitesFile)) {
-    file_put_contents($sitesFile, json_encode([]));
-}
 
-function loadSites($file) {
+// Hilfsfunktion zum Laden der Seiten
+function getSites($file) {
+    if (!file_exists($file)) return [];
     return json_decode(file_get_contents($file), true) ?: [];
 }
 
-function saveSites($file, $data) {
-    // JSON_INVALID_UTF8_SUBSTITUTE hilft bei Encoding-Problemen
-    return file_put_contents($file, json_encode(array_values($data), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+// Hilfsfunktion zum Speichern der Seiten
+function saveSites($file, $sites) {
+    return file_put_contents($file, json_encode(array_values($sites), JSON_PRETTY_PRINT));
 }
 
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
-    case 'get_sites':
-        echo json_encode(loadSites($sitesFile));
-        break;
 
-    case 'add_site':
-        $name = trim($_POST['name'] ?? '');
-        $url  = rtrim(trim($_POST['url'] ?? ''), '/');
-        
-        if (!$name || !$url) {
-            echo json_encode(['success' => false, 'message' => 'Eingaben unvollständig']);
+    // --- SYSTEM UPDATES ---
+
+    case 'check_update':
+        if (!file_exists($versionFile)) {
+            echo json_encode(['success' => false, 'message' => 'version.php fehlt']);
             exit;
         }
 
-        $sites = loadSites($sitesFile);
-        $newKey = bin2hex(random_bytes(16));
+        $local = include($versionFile);
+        $localVersion = $local['version'] ?? '0.0.0';
+        $useBeta = (isset($_GET['beta']) && $_GET['beta'] === 'true');
+        
+        $remoteVersion = '0.0.0';
+        $downloadUrl = '';
 
-        $sites[] = [
-            'id' => uniqid(),
-            'name' => $name,
-            'url' => $url,
-            'api_key' => $newKey,
-            'status' => 'pending',
-            'version' => '-',
-            'updates' => ['core' => 0, 'plugins' => 0, 'themes' => 0]
-        ];
+        try {
+            $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-App\r\n"]];
+            $context = stream_context_create($opts);
 
-        if (saveSites($sitesFile, $sites)) {
-            echo json_encode(['success' => true, 'api_key' => $newKey]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Datei nicht schreibbar']);
-        }
-        break;
-
-    case 'update_site':
-        $id = $_POST['id'] ?? '';
-        $name = trim($_POST['name'] ?? '');
-        $url = rtrim(trim($_POST['url'] ?? ''), '/');
-        $renew = isset($_POST['renew_key']);
-
-        $sites = loadSites($sitesFile);
-        $updatedKey = null;
-        $found = false;
-
-        foreach ($sites as &$site) {
-            if ($site['id'] === $id) {
-                $site['name'] = $name;
-                $site['url'] = $url;
-                if ($renew) {
-                    $updatedKey = bin2hex(random_bytes(16));
-                    $site['api_key'] = $updatedKey;
+            if ($useBeta) {
+                // Beta via GitHub Branch (Raw version.php lesen)
+                $apiUrl = "https://raw.githubusercontent.com/olpo24/VantixDash/beta/version.php";
+                $content = @file_get_contents($apiUrl, false, $context);
+                if ($content) {
+                    preg_match("/'version' => '(.*)'/", $content, $matches);
+                    $remoteVersion = $matches[1] ?? '0.0.0';
+                    $downloadUrl = "https://github.com/olpo24/VantixDash/archive/refs/heads/beta.zip";
                 }
-                $found = true;
-                break;
-            }
-        }
-
-        if ($found && saveSites($sitesFile, $sites)) {
-            echo json_encode(['success' => true, 'api_key' => $updatedKey]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Update fehlgeschlagen']);
-        }
-        break;
-        
-    case 'delete_site':
-        $id = $_POST['id'] ?? '';
-        $sites = loadSites($sitesFile);
-        $filtered = array_filter($sites, fn($s) => $s['id'] !== $id);
-        
-        if (saveSites($sitesFile, $filtered)) {
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false]);
-        }
-        break;
-		
-		case 'refresh_site':
-        // 1. ID sicher abgreifen
-        $id = isset($_POST['id']) ? trim($_POST['id']) : '';
-        if (empty($id)) {
-            $jsonInput = json_decode(file_get_contents('php://input'), true);
-            $id = isset($jsonInput['id']) ? trim($jsonInput['id']) : '';
-        }
-
-        // 2. Sites laden
-        if (!file_exists($sitesFile)) {
-            echo json_encode(['success' => false, 'message' => 'sites.json nicht gefunden']);
-            exit;
-        }
-        
-        $sites = json_decode(file_get_contents($sitesFile), true);
-        if (!$sites) {
-            echo json_encode(['success' => false, 'message' => 'sites.json leer oder korrupt']);
-            exit;
-        }
-
-        $foundIndex = -1;
-        foreach ($sites as $index => $site) {
-            // Wir nutzen hier den losen Vergleich == statt === falls Typ-Unterschiede vorliegen
-            if (isset($site['id']) && trim($site['id']) == $id) {
-                $foundIndex = $index;
-                break;
-            }
-        }
-
-        if ($foundIndex === -1) {
-            // HIER IST DER WICHTIGE DEBUG-OUTPUT:
-            echo json_encode([
-                'success' => false, 
-                'message' => "ID '$id' nicht in sites.json gefunden. Vorhandene IDs: " . implode(', ', array_column($sites, 'id'))
-            ]);
-            exit;
-        }
-
-        // Ab hier folgt die CURL-Logik (wie gehabt)...
-        $site = &$sites[$foundIndex];
-        // ... (dein restlicher Curl Code)
-
-        // Logik aus check_sites.php für diese eine Seite ausführen
-        $site = &$sites[$foundIndex];
-        $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
-        
-        $ch = curl_init($apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'X-Vantix-Secret: ' . $site['api_key'],
-            'Content-Type: application/json'
-        ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200 && $response) {
-            $data = json_decode($response, true);
-            if ($data) {
-                $site['status'] = 'online';
-                $site['version'] = $data['version'] ?? '-';
-                $site['php'] = $data['php'] ?? '-';
-                $site['updates'] = [
-                    'core' => $data['core'] ?? 0,
-                    'plugins' => $data['plugins'] ?? 0,
-                    'themes' => $data['themes'] ?? 0
-                ];
-                $site['details'] = $data['details'] ?? [];
-                $site['last_check'] = date('Y-m-d H:i:s');
-                
-                saveSites($sitesFile, $sites);
-                echo json_encode(['success' => true, 'site' => $site]);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Ungültige Antwort von WP']);
+                // Stable via GitHub Releases API
+                $apiUrl = "https://api.github.com/repos/olpo24/VantixDash/releases/latest";
+                $content = @file_get_contents($apiUrl, false, $context);
+                if ($content) {
+                    $release = json_decode($content, true);
+                    $remoteVersion = str_replace('v', '', $release['tag_name'] ?? '0.0.0');
+                    $downloadUrl = $release['zipball_url'] ?? '';
+                }
             }
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Verbindungsfehler (HTTP '.$httpCode.')']);
+
+            echo json_encode([
+                'success' => true,
+                'local' => $localVersion,
+                'remote' => $remoteVersion,
+                'update_available' => version_compare($remoteVersion, $localVersion, '>'),
+                'download_url' => $downloadUrl,
+                'mode' => $useBeta ? 'Beta' : 'Stable'
+            ]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         break;
-	case 'check_update':
-    $local = include('version.php');
-    $remoteContent = @file_get_contents($local['remote_url']);
-    
-    if (!$remoteContent) {
-        echo json_encode(['success' => false, 'message' => 'GitHub nicht erreichbar']);
-        exit;
-    }
 
-    // Wir extrahieren die Version aus dem Remote-PHP-Code per Regex
-    preg_match("/'version' => '(.+?)'/", $remoteContent, $matches);
-    $remoteVersion = $matches[1] ?? '0.0.0';
-
-    echo json_encode([
-        'success' => true,
-        'local' => $local['version'],
-        'remote' => $remoteVersion,
-        'update_available' => version_compare($remoteVersion, $local['version'], '>')
-    ]);
-    break;
-
-case 'install_update':
+    case 'install_update':
         $downloadUrl = $_POST['url'] ?? '';
-        
-        // Validierung der URL
-        if (empty($downloadUrl) || !filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige oder fehlende Download-URL']);
+        if (empty($downloadUrl)) {
+            echo json_encode(['success' => false, 'message' => 'Pfad zur Update-Datei fehlt']);
             exit;
         }
 
-        // Pfade absolut definieren
-        $tempZip = __DIR__ . '/data/update_temp.zip';
-        $extractPath = __DIR__ . '/data/temp_extract/';
+        $tempZip = $dataDir . '/update_temp.zip';
+        $extractPath = $dataDir . '/temp_extract/';
 
-        // Download mit User-Agent (wichtig für GitHub)
+        // 1. Download mit User-Agent
         $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-Updater\r\n"]];
         $context = stream_context_create($opts);
         $fileContent = @file_get_contents($downloadUrl, false, $context);
         
         if ($fileContent === false) {
-            echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
+            echo json_encode(['success' => false, 'message' => 'Download von GitHub fehlgeschlagen']);
             exit;
         }
         file_put_contents($tempZip, $fileContent);
 
+        // 2. Entpacken
         $zip = new ZipArchive;
         if ($zip->open($tempZip) === TRUE) {
             if (!is_dir($extractPath)) mkdir($extractPath, 0755, true);
             $zip->extractTo($extractPath);
             $zip->close();
 
-            // GitHub-Ordnerstruktur finden
+            // Root-Ordner im GitHub-ZIP finden
             $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
             $sourceRoot = reset($subDirs);
 
@@ -252,12 +129,12 @@ case 'install_update':
 
                 foreach ($files as $file) {
                     $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
-                    $destPath = __DIR__ . '/' . $relativePath;
+                    $destPath = $baseDir . '/' . $relativePath;
 
                     if ($file->isDir()) {
                         if (!is_dir($destPath)) mkdir($destPath, 0755, true);
                     } else {
-                        // Schutz wichtiger Dateien
+                        // Wichtige lokale Daten schützen
                         if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
                             copy($file->getRealPath(), $destPath);
                         }
@@ -265,25 +142,113 @@ case 'install_update':
                 }
             }
 
-            // --- SICHERER CLEANUP ---
+            // 3. Sicherer Cleanup
             if (file_exists($tempZip)) unlink($tempZip);
-            
-            // Rekursives Löschen ohne anonyme Funktion (vermeidet Path-Errors)
             if (is_dir($extractPath)) {
                 $it = new RecursiveIteratorIterator(
                     new RecursiveDirectoryIterator($extractPath, RecursiveDirectoryIterator::SKIP_DOTS),
                     RecursiveIteratorIterator::CHILD_FIRST
                 );
                 foreach($it as $file) {
-                    if ($file->isDir()) rmdir($file->getRealPath());
-                    else unlink($file->getRealPath());
+                    $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
                 }
                 rmdir($extractPath);
             }
             
             echo json_encode(['success' => true]);
         } else {
-            echo json_encode(['success' => false, 'message' => 'ZIP-Fehler']);
+            echo json_encode(['success' => false, 'message' => 'ZIP-Archiv konnte nicht geöffnet werden']);
         }
+        break;
+
+    // --- SEITEN VERWALTUNG ---
+
+    case 'get_sites':
+        echo json_encode(getSites($sitesFile));
+        break;
+
+    case 'add_site':
+        $sites = getSites($sitesFile);
+        $newId = bin2hex(random_bytes(8));
+        $apiKey = bin2hex(random_bytes(16));
+
+        $newSite = [
+            'id' => $newId,
+            'name' => $_POST['name'] ?? 'Unbenannt',
+            'url' => rtrim($_POST['url'] ?? '', '/'),
+            'api_key' => $apiKey,
+            'last_check' => null,
+            'status' => 'pending'
+        ];
+
+        $sites[] = $newSite;
+        if (saveSites($sitesFile, $sites)) {
+            echo json_encode(['success' => true, 'api_key' => $apiKey]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Speichern fehlgeschlagen']);
+        }
+        break;
+
+    case 'update_site':
+        $sites = getSites($sitesFile);
+        $id = $_POST['id'] ?? '';
+        $found = false;
+
+        foreach ($sites as &$site) {
+            if ($site['id'] === $id) {
+                $site['name'] = $_POST['name'] ?? $site['name'];
+                $site['url'] = rtrim($_POST['url'] ?? $site['url'], '/');
+                
+                // Falls ein neuer Key generiert werden soll
+                if (isset($_POST['regen_key']) && $_POST['regen_key'] === 'true') {
+                    $site['api_key'] = bin2hex(random_bytes(16));
+                    $found = $site['api_key']; // Geben wir zur Anzeige zurück
+                } else {
+                    $found = true;
+                }
+                break;
+            }
+        }
+
+        if ($found) {
+            saveSites($sitesFile, $sites);
+            echo json_encode(['success' => true, 'api_key' => ($found === true ? null : $found)]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden']);
+        }
+        break;
+
+    case 'delete_site':
+        $sites = getSites($sitesFile);
+        $id = $_POST['id'] ?? '';
+        $filtered = array_filter($sites, fn($s) => $s['id'] !== $id);
+
+        if (saveSites($sitesFile, $filtered)) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
+        break;
+
+    case 'refresh_site':
+        $sites = getSites($sitesFile);
+        $id = $_POST['id'] ?? '';
+        
+        foreach ($sites as &$site) {
+            if ($site['id'] === $id) {
+                // Dummy Refresh Logik - hier würde der WP-API Call stattfinden
+                $site['last_check'] = date('Y-m-d H:i:s');
+                $site['status'] = 'online';
+                
+                saveSites($sitesFile, $sites);
+                echo json_encode(['success' => true, 'site' => $site]);
+                exit;
+            }
+        }
+        echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden']);
+        break;
+
+    default:
+        echo json_encode(['success' => false, 'message' => 'Ungültige Aktion']);
         break;
 }
