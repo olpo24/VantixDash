@@ -127,19 +127,25 @@ switch ($action) {
                     RecursiveIteratorIterator::SELF_FIRST
                 );
 
-                foreach ($files as $file) {
-                    $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
-                    $destPath = $baseDir . '/' . $relativePath;
+               foreach ($files as $file) {
+    $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
+    $destPath = $baseDir . '/' . $relativePath;
 
-                    if ($file->isDir()) {
-                        if (!is_dir($destPath)) mkdir($destPath, 0755, true);
-                    } else {
-                        // Wichtige lokale Daten schützen
-                        if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
-                            copy($file->getRealPath(), $destPath);
-                        }
-                    }
-                }
+    if ($file->isDir()) {
+        if (!is_dir($destPath)) mkdir($destPath, 0755, true);
+    } else {
+        $filename = basename($destPath);
+        
+        // REGEL: Überschreibe alles, AUẞER config.php und den /data/ Ordner
+        // Die version.php MUSS überschrieben werden.
+        $isConfig = ($filename === 'config.php');
+        $isDataFolder = (strpos($destPath, '/data/') !== false);
+
+        if (!$isConfig && !$isDataFolder) {
+            copy($file->getRealPath(), $destPath);
+        }
+    }
+}
             }
 
             // 3. Sicherer Cleanup
