@@ -4,5 +4,5 @@
  * Hält die aktuelle Versionsnummer des Dashboards.
  */
 return [
-    'version' => '1.0.6', // Diese Nummer erhöhst du bei jedem Release
+    'version' => '1.0.7', // Diese Nummer erhöhst du bei jedem Release
 ];
