@@ -95,4 +95,40 @@ class SiteService {
     }
     return false;
 }
+    public function checkAppUpdate($beta = false) {
+    // Aktuelle Version deines Dashboards
+    $currentVersion = '1.0.0'; 
+    $repo = "olpo24/VantixDash";
+    $url = "https://api.github.com/repos/$repo/releases/latest";
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_USERAGENT => 'VantixDash-Updater', // GitHub setzt einen User-Agent voraus
+        CURLOPT_TIMEOUT => 10
+    ]);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    if (!$response) {
+        return ['success' => false, 'message' => 'GitHub API nicht erreichbar'];
+    }
+
+    $data = json_decode($response, true);
+    $remoteVersion = isset($data['tag_name']) ? str_replace('v', '', $data['tag_name']) : $currentVersion;
+
+    // Einfacher Versionsvergleich
+    $updateAvailable = version_compare($remoteVersion, $currentVersion, '>');
+
+    return [
+        'success' => true,
+        'update_available' => $updateAvailable,
+        'current' => $currentVersion,
+        'remote' => $remoteVersion,
+        'download_url' => $data['zipball_url'] ?? '',
+        'changelog' => $data['body'] ?? ''
+    ];
+}
 }
