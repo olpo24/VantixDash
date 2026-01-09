@@ -226,6 +226,47 @@ const App = {
             alert("Die WordPress-Seite konnte nicht erreicht werden.");
         }
     }
+    async checkUpdates() {
+    const statusDiv = document.getElementById('update-status');
+    try {
+        const response = await fetch('api.php?action=check_update');
+        const data = await response.json();
+        
+        if (data.update_available) {
+            statusDiv.className = "alert alert-warning border-0";
+            statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
+            document.getElementById('update-actions').style.display = 'block';
+        } else {
+            statusDiv.className = "alert alert-success border-0";
+            statusDiv.innerHTML = `VantixDash ist auf dem neuesten Stand (v${data.local})`;
+        }
+    } catch (e) {
+        statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
+    }
+},
+
+async runUpdate() {
+    if (!confirm("Update jetzt installieren? Bestehende Dateien werden überschrieben (außer Config).")) return;
+    
+    const btn = document.getElementById('start-update-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
+
+    try {
+        const response = await fetch('api.php?action=install_update');
+        const data = await response.json();
+        if (data.success) {
+            alert("Update abgeschlossen!");
+            window.location.reload();
+        } else {
+            alert("Fehler: " + data.message);
+        }
+    } catch (e) {
+        alert("Update fehlgeschlagen.");
+    } finally {
+        btn.disabled = false;
+    }
+}
 };
 
 // Startpunkt
