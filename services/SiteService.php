@@ -77,31 +77,46 @@ class SiteService {
     }
 
     public function checkAppUpdate($beta = false) {
-        $currentVersion = '1.0.0'; 
-        $repo = "olpo24/VantixDash";
-        $url = "https://api.github.com/repos/$repo/releases/latest";
+    $currentVersion = '1.0.0'; 
+    $repo = "olpo24/VantixDash";
+    
+    // Wenn Beta aktiv ist, fragen wir alle Releases ab, sonst nur das letzte Stable
+    $url = $beta 
+        ? "https://api.github.com/repos/$repo/releases" 
+        : "https://api.github.com/repos/$repo/releases/latest";
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_USERAGENT => 'VantixDash-Updater',
-            CURLOPT_TIMEOUT => 10
-        ]);
-        $response = curl_exec($ch);
-        curl_close($ch);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_USERAGENT => 'VantixDash-Updater',
+        CURLOPT_TIMEOUT => 10
+    ]);
+    $response = curl_exec($ch);
+    curl_close($ch);
 
-        $data = json_decode($response, true);
-        $remoteVersion = isset($data['tag_name']) ? str_replace('v', '', $data['tag_name']) : $currentVersion;
+    if (!$response) return ['success' => false, 'message' => 'API Error'];
 
-        return [
-            'success' => true,
-            'update_available' => version_compare($remoteVersion, $currentVersion, '>'),
-            'current' => $currentVersion,
-            'remote' => $remoteVersion,
-            'download_url' => $data['zipball_url'] ?? '',
-            'changelog' => $data['body'] ?? ''
-        ];
+    $data = json_decode($response, true);
+    
+    // Logik für Beta: Wir nehmen das erste Element aus der Liste (neuestes)
+    if ($beta && is_array($data) && !empty($data)) {
+        $release = $data[0]; 
+    } else {
+        $release = $data;
     }
+
+    $remoteVersion = isset($release['tag_name']) ? str_replace('v', '', $release['tag_name']) : $currentVersion;
+
+    return [
+        'success' => true,
+        'update_available' => version_compare($remoteVersion, $currentVersion, '>'),
+        'current' => $currentVersion,
+        'remote' => $remoteVersion,
+        'is_beta' => $release['prerelease'] ?? false,
+        'download_url' => $release['zipball_url'] ?? '',
+        'changelog' => $release['body'] ?? ''
+    ];
+}
 
     public function installUpdate($url) {
         $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
