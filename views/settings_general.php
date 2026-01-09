@@ -1,100 +1,101 @@
 <?php
 /**
- * views/settings_general.php
- * Einstellungsseite mit Update-Verwaltung
+ * settings_general.php
+ * Verwaltung der globalen Dashboard-Einstellungen und Updates.
  */
 ?>
 
-<div class="container-fluid py-4">
-    <div class="row">
-        <div class="col-md-8">
-            <h1 class="h3 mb-4">Einstellungen</h1>
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem;">
+        <h1 style="font-size: 1.5rem; font-weight: 800;">Einstellungen</h1>
+        <p class="text-muted small">Verwalte dein VantixDash System und Updates</p>
+    </div>
 
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-0 py-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h5 class="card-title mb-0">
-                            <i class="ph ph-wrench me-2"></i>System-Update
-                        </h5>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="beta-toggle" onchange="App.checkAppUpdates()">
-                            <label class="form-check-label small text-muted" for="beta-toggle">Beta-Kanal</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body pt-0">
-                    <p class="text-muted small mb-4">
-                        Halte dein Dashboard aktuell, um neue Funktionen und Sicherheitsupdates zu erhalten.
-                    </p>
-
-                    <div id="update-status" class="alert alert-light border d-flex align-items-center py-3">
-                        <i class="ph ph-info me-3 fs-4"></i>
-                        <div>
-                            Klicke auf <strong>Updates prüfen</strong>, um die Version abzugleichen.
-                        </div>
-                    </div>
-
-                    <input type="hidden" id="pending-download-url" value="">
-
-                    <div id="update-actions" style="display: none;" class="mt-3">
-                        <div class="card bg-light border-0">
-                            <div class="card-body d-flex align-items-center justify-content-between">
-                                <span class="small">Das Update steht bereit zum Download.</span>
-                                <button id="start-update-btn" onclick="App.runUpdate()" class="btn btn-warning shadow-sm">
-                                    <i class="ph ph-download-simple me-2"></i>Jetzt installieren
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 pt-3 border-top">
-                        <button onclick="App.checkUpdates()" class="btn btn-outline-primary btn-sm">
-                            <i class="ph ph-arrows-clockwise me-2"></i>Updates jetzt prüfen
-                        </button>
-                    </div>
-                </div>
+    <div class="card" style="margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="background: var(--primary-light); color: var(--primary); padding: 0.75rem; border-radius: 10px;">
+                <i class="ph ph-arrows-clockwise" style="font-size: 1.5rem;"></i>
             </div>
-
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <h5 class="card-title mb-0">Allgemeine Konfiguration</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Hier kannst du weitere globale Einstellungen für VantixDash vornehmen.</p>
-                </div>
+            <div>
+                <h2 style="font-size: 1.1rem; font-weight: 700; margin: 0;">System-Update</h2>
+                <p class="text-muted small" style="margin: 0;">Aktuelle Version: 
+                    <span class="badge" style="background: #f1f5f9; color: #475569;">v<?php echo include('version.php')['version']; ?></span>
+                </p>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card bg-primary text-white border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <h6>Dashboard Info</h6>
-                    <hr class="border-white opacity-25">
-                    <div class="small">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Lokal:</span>
-                            <span class="fw-bold">v<?php 
-                                $v = include 'version.php'; 
-                                echo $v['version']; 
-                            ?></span>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>PHP Version:</span>
-                            <span class="fw-bold"><?php echo PHP_VERSION; ?></span>
-                        </div>
-                    </div>
+        <div id="app-update-banner" style="display: none; background: #fffbeb; border: 1px solid #fde68a; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <i class="ph ph-sparkle" style="color: #d97706; font-size: 1.25rem;"></i>
+                <div>
+                    <span style="font-weight: 700; color: #92400e;">Update verfügbar!</span>
+                    <span id="new-version-tag" style="margin-left: 5px; opacity: 0.8;"></span>
                 </div>
             </div>
+            <button id="start-update-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                Jetzt aktualisieren
+            </button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                <div>
+                    <div style="font-weight: 700;">Beta-Kanal</div>
+                    <div class="text-muted small">Erhalte Vorab-Versionen (instabiler)</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="beta-toggle" onchange="App.toggleBeta(this.checked)">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            
+            <button class="btn" style="width: fit-content; background: #fff; border: 1px solid var(--border);" onclick="App.checkAppUpdates()">
+                <i class="ph ph-magnifying-glass"></i> Nach Updates suchen
+            </button>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem;">
+        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1.25rem;">Erscheinungsbild</h3>
+        <div style="display: grid; gap: 1.5rem;">
+            <div>
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Dashboard Name</label>
+                <input type="text" class="form-control" value="VantixDash" placeholder="Z.B. Mein Web-Panel">
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center; padding: 1rem; background: #f0fdf4; border-radius: 8px; color: #166534;">
+                <i class="ph ph-info" style="font-size: 1.25rem;"></i>
+                <span class="small">Die Einstellungen werden automatisch in der <code>config.php</code> gespeichert.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="border: 1px solid #fee2e2;">
+        <h3 style="font-size: 1rem; font-weight: 700; color: #991b1b; margin-bottom: 1rem;">Gefahrenzone</h3>
+        <p class="text-muted small">Diese Aktionen können nicht rückgängig gemacht werden.</p>
+        <div style="display: flex; gap: 1rem;">
+            <button class="btn" style="background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;" onclick="if(confirm('Alle Cache-Daten löschen?')) location.reload();">
+                Cache leeren
+            </button>
         </div>
     </div>
 </div>
 
+<style>
+/* Toggle Switch Style */
+.switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--primary); }
+input:checked + .slider:before { transform: translateX(22px); }
+
+.badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-family: monospace; }
+</style>
+
 <script>
-    // Kleiner Helfer, um den Beta-Status im Browser-Speicher zu behalten
-    document.addEventListener('DOMContentLoaded', function() {
-        const betaToggle = document.getElementById('beta-toggle');
-        if (localStorage.getItem('beta_enabled') === 'true') {
-            betaToggle.checked = true;
-        }
-    });
+// Initialen Status des Beta-Toggles setzen
+document.addEventListener('DOMContentLoaded', () => {
+    const isBeta = localStorage.getItem('vantix_beta') === 'true';
+    document.getElementById('beta-toggle').checked = isBeta;
+});
 </script>
