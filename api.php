@@ -73,14 +73,16 @@ switch ($action) {
         $downloadUrl = $_POST['url'] ?? '';
         
         // SICHERHEIT: GitHub-Whitelist (dein Regex-Fix)
-        if (!preg_match('/^https:\/\/(github\.com|api\.github\.com|raw\.githubusercontent\.com)\/olpo24\/VantixDash\//', $downloadUrl)) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige Update-Quelle']);
-            exit;
-        }
+       $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com|raw\.githubusercontent\.com)\/olpo24\/VantixDash\//i';
 
-        $success = $siteService->installUpdate($downloadUrl);
-        echo json_encode(['success' => $success]);
-        break;
+    if (!preg_match($pattern, $downloadUrl)) {
+        echo json_encode(['success' => false, 'message' => 'Sicherheitsfehler: Ungültige Update-Quelle (' . htmlspecialchars($downloadUrl) . ')']);
+        exit;
+    }
+
+    $success = $siteService->installUpdate($downloadUrl);
+    echo json_encode(['success' => $success]);
+    break;
 
     default:
         http_response_code(400);
