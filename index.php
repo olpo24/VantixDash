@@ -19,16 +19,17 @@ if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
 
 $view = isset($_GET['view']) ? $_GET['view'] : 'dashboard';
 ?>
-<!DOCTYPE html>
-<html lang="de">
-<head>
     <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 ?>
-<meta name="csrf-token" content="<?php echo $_SESSION['csrf_token']; ?>">
+<!DOCTYPE html>
+<html lang="de">
+<head>
+
+    <meta name="csrf-token" content="<?php echo $_SESSION['csrf_token']; ?>">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VantixDash</title>
