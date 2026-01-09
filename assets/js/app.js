@@ -247,19 +247,15 @@ const App = {
         const statusDiv = document.getElementById('update-status');
         if (!statusDiv) return;
 
-        // 1. Prüfen, ob der Beta-Toggle aktiv ist
         const betaToggle = document.getElementById('beta-toggle');
         const isBeta = betaToggle ? betaToggle.checked : false;
 
-        // Optisches Feedback, dass geprüft wird
         statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
 
         try {
-            // 2. Beta-Parameter und Zeitstempel (gegen Cache) an API senden
             const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
             const data = await response.json();
             
-            // 3. Fallback für den Modus-Text (falls mode mal fehlen sollte)
             const modeName = data.mode || (isBeta ? 'Beta' : 'Stable');
 
             if (data.update_available) {
@@ -270,7 +266,6 @@ const App = {
                         <small>Version ${data.remote} ist bereit (Installiert: ${data.local})</small>
                     </div>`;
                 
-                // Download-URL für den install-Prozess zwischenspeichern
                 const pendingInput = document.getElementById('pending-download-url');
                 if (pendingInput) pendingInput.value = data.download_url;
 
@@ -278,7 +273,6 @@ const App = {
                 if (actions) actions.style.display = 'block';
             } else {
                 statusDiv.className = "alert alert-success border-0";
-                // Hier wird jetzt data.mode genutzt:
                 statusDiv.innerHTML = `<i class="ph ph-check-circle me-2"></i> VantixDash ${modeName} ist auf dem neuesten Stand (v${data.local})`;
                 
                 const actions = document.getElementById('update-actions');
@@ -290,11 +284,10 @@ const App = {
         }
     },
 
-   /**
+    /**
      * Installiert das System-Update
      */
     async runUpdate() {
-        // Die URL aus dem versteckten Feld holen, das in checkUpdates() befüllt wurde
         const downloadUrl = document.getElementById('pending-download-url')?.value;
         
         if (!downloadUrl) {
@@ -311,7 +304,6 @@ const App = {
         }
 
         try {
-            // Die URL als POST-Parameter senden
             const formData = new FormData();
             formData.append('url', downloadUrl);
 
@@ -334,7 +326,8 @@ const App = {
         } finally {
             if (btn) btn.disabled = false;
         }
-    },
+    }
+}; // Diese Klammer hat gefehlt
 
 // Startpunkt
 document.addEventListener('DOMContentLoaded', () => App.init());
