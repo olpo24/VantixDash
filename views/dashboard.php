@@ -55,15 +55,16 @@
 <div class="card" style="padding: 0; overflow: hidden;">
     <div class="table-container">
         <table>
-            <thead>
-                <tr>
-                    <th style="padding-left: 1.5rem;">Website / URL</th>
-                    <th style="text-align: center;">Status</th>
-                    <th style="text-align: center;">Versionen</th>
-                    <th style="text-align: center;">Updates</th>
-                    <th style="text-align: right; padding-right: 1.5rem;">Aktionen</th>
-                </tr>
-            </thead>
+      <thead>
+    <tr>
+        <th style="padding-left: 1.5rem;">Website / URL</th>
+        <th style="text-align: center;">WP Version</th>
+        <th style="text-align: center;">PHP</th>
+        <th style="text-align: center;">Updates</th>
+        <th style="text-align: center;">Check</th>
+        <th style="text-align: right; padding-right: 1.5rem;">Aktionen</th>
+    </tr>
+</thead>
             <tbody id="sites-tbody">
                 <tr>
                     <td colspan="5" style="text-align: center; padding: 4rem; color: var(--text-muted);">
