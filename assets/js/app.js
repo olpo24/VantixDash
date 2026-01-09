@@ -3,6 +3,18 @@
  * Hauptsteuerung für das VantixDash Dashboard
  */
 
+const Utils = {
+    /**
+     * Verhindert XSS durch Escaping von HTML-Tags
+     */
+    escapeHTML(str) {
+        if (!str) return "";
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+};
+
 const App = {
     sites: [],
 
@@ -123,11 +135,9 @@ const App = {
                 document.getElementById('editSiteModal').close();
                 
                 if (result.api_key) {
-                    // Falls ein neuer Key generiert wurde, anzeigen
                     document.getElementById('generatedKeyDisplay').innerText = result.api_key;
                     document.getElementById('keySuccessModal').showModal();
                 } else {
-                    // Ohne neuen Key einfach Seite neu laden
                     window.location.reload();
                 }
             } else {
@@ -147,10 +157,12 @@ const App = {
         if (!confirm("Diese Webseite wirklich aus dem Dashboard entfernen?")) return;
 
         try {
+            const formData = new FormData();
+            formData.append('id', siteId);
+
             const response = await fetch('api.php?action=delete_site', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `id=${siteId}`
+                body: formData
             });
             
             const result = await response.json();
@@ -163,13 +175,13 @@ const App = {
             console.error("Lösch-Fehler:", error);
         }
     },
-/**
+
+    /**
      * Einzelne Seite manuell aktualisieren
      */
     async refreshSite(siteId, event) {
         if (event) event.stopPropagation();
 
-        // Icon zum Drehen bringen
         const icon = event ? event.currentTarget.querySelector('i') : null;
         if (icon) icon.classList.add('ph-spin');
 
@@ -179,15 +191,16 @@ const App = {
 
             const response = await fetch('api.php?action=refresh_site', {
                 method: 'POST',
-                body: formData // Wichtig: Als FormData senden!
+                body: formData
             });
             
             const result = await response.json();
 
             if (result.success) {
-                // Lokale Daten aktualisieren
                 this.sites = this.sites.map(s => s.id === siteId ? result.site : s);
-                TableManager.renderDashboardTable(this.sites);
+                if (typeof TableManager !== 'undefined') {
+                    TableManager.renderDashboardTable(this.sites);
+                }
             } else {
                 alert('Fehler: ' + result.message);
             }
@@ -198,6 +211,7 @@ const App = {
             if (icon) icon.classList.remove('ph-spin');
         }
     },
+
     /**
      * WordPress Auto-Login
      */
@@ -206,7 +220,6 @@ const App = {
         if (!site) return;
 
         try {
-            // Child-Plugin anfragen
             const response = await fetch(`${site.url}/wp-json/vantixdash/v1/login`, {
                 method: 'GET',
                 headers: {
@@ -225,48 +238,60 @@ const App = {
             console.error("Verbindungsfehler beim Login:", error);
             alert("Die WordPress-Seite konnte nicht erreicht werden.");
         }
-    }
+    },
+
+    /**
+     * Prüft auf System-Updates via GitHub
+     */
     async checkUpdates() {
-    const statusDiv = document.getElementById('update-status');
-    try {
-        const response = await fetch('api.php?action=check_update');
-        const data = await response.json();
+        const statusDiv = document.getElementById('update-status');
+        if (!statusDiv) return;
+
+        try {
+            const response = await fetch('api.php?action=check_update');
+            const data = await response.json();
+            
+            if (data.update_available) {
+                statusDiv.className = "alert alert-warning border-0";
+                statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
+                const actions = document.getElementById('update-actions');
+                if (actions) actions.style.display = 'block';
+            } else {
+                statusDiv.className = "alert alert-success border-0";
+                statusDiv.innerHTML = `VantixDash ist auf dem neuesten Stand (v${data.local})`;
+            }
+        } catch (e) {
+            statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
+        }
+    },
+
+    /**
+     * Installiert das System-Update
+     */
+    async runUpdate() {
+        if (!confirm("Update jetzt installieren? Bestehende Dateien werden überschrieben (außer Config).")) return;
         
-        if (data.update_available) {
-            statusDiv.className = "alert alert-warning border-0";
-            statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
-            document.getElementById('update-actions').style.display = 'block';
-        } else {
-            statusDiv.className = "alert alert-success border-0";
-            statusDiv.innerHTML = `VantixDash ist auf dem neuesten Stand (v${data.local})`;
+        const btn = document.getElementById('start-update-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
         }
-    } catch (e) {
-        statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
-    }
-},
 
-async runUpdate() {
-    if (!confirm("Update jetzt installieren? Bestehende Dateien werden überschrieben (außer Config).")) return;
-    
-    const btn = document.getElementById('start-update-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
-
-    try {
-        const response = await fetch('api.php?action=install_update');
-        const data = await response.json();
-        if (data.success) {
-            alert("Update abgeschlossen!");
-            window.location.reload();
-        } else {
-            alert("Fehler: " + data.message);
+        try {
+            const response = await fetch('api.php?action=install_update');
+            const data = await response.json();
+            if (data.success) {
+                alert("Update abgeschlossen!");
+                window.location.reload();
+            } else {
+                alert("Fehler: " + data.message);
+            }
+        } catch (e) {
+            alert("Update fehlgeschlagen.");
+        } finally {
+            if (btn) btn.disabled = false;
         }
-    } catch (e) {
-        alert("Update fehlgeschlagen.");
-    } finally {
-        btn.disabled = false;
     }
-}
 };
 
 // Startpunkt
