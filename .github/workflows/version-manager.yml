@@ -13,26 +13,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Update version.php
+      - name: Update version.php inside the runner
         run: |
+          # Extrahiert die Version vom Tag (z.B. v1.0.9 -> 1.0.9)
           VERSION_TAG=${{ github.event.release.tag_name }}
           VERSION_CLEAN=${VERSION_TAG#v}
+          
+          # Ersetzt die Versionsnummer in der version.php Datei
+          # Nutzt sed, um den Wert hinter 'version' => zu finden
           sed -i "s/'version' => '.*'/'version' => '$VERSION_CLEAN'/" version.php
+          
+          echo "Build-Version: $VERSION_CLEAN"
 
-      - name: Create Release Zip
+      - name: Create Versioned Release Zip
         run: |
           VERSION_TAG=${{ github.event.release.tag_name }}
-          # Erstellt den Dateinamen, z.B. VantixDash_v1.0.9.zip
           ZIP_NAME="VantixDash_${VERSION_TAG}.zip"
           
-          # Wir speichern den Namen für den nächsten Step
+          # Speichert den Namen für den nächsten Schritt
           echo "FINAL_ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
           
-          # Zippen: -r (rekursiv), -j (optional: falls man keine Pfade will, hier aber mit Pfaden besser)
-          # Ausschluss von Git-Daten, GitHub Actions und dem lokalen Daten-Ordner
-          zip -r "$ZIP_NAME" . -x "*.git*" ".github*" "data/*" "config.php"
+          # Erstellt die ZIP-Datei
+          # -r: rekursiv
+          # -x: schließt unnötige Dateien aus (Git, Actions, lokale Configs/Daten)
+          zip -r "$ZIP_NAME" . -x "*.git*" ".github*" "data/*" "config.php" "update_temp.zip"
 
-      - name: Upload Release Asset
+      - name: Upload Zip to Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ env.FINAL_ZIP_NAME }}
