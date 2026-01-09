@@ -243,27 +243,26 @@ switch ($action) {
                 curl_close($ch);
 
                 if ($httpCode === 200 && $response) {
-                    $data = json_decode($response, true);
-                    
-                    // Daten aktualisieren
-                    $site['status'] = 'online';
-                    $site['last_check'] = date('Y-m-d H:i:s');
-                    $site['version'] = $data['version'] ?? '';
-                    $site['php'] = $data['php'] ?? '';
-                    $site['ip'] = $data['ip'] ?? '';
-                    
-                    // Updates strukturieren
-                    $site['updates'] = [
-                        'core' => $data['core'] ?? 0,
-                        'plugins' => $data['plugins'] ?? 0,
-                        'themes' => $data['themes'] ?? 0
-                    ];
-                    
-                    // Detaillierte Listen speichern
-                    $site['plugin_list'] = $data['plugin_list'] ?? [];
-                    $site['theme_list'] = $data['theme_list'] ?? [];
-                    
-                } else {
+    $data = json_decode($response, true);
+    
+    // NUR explizit erlaubte Felder aktualisieren (Whitelist)
+    $site['status'] = 'online';
+    $site['last_check'] = date('Y-m-d H:i:s');
+    $site['version'] = filter_var($data['version'] ?? '', FILTER_SANITIZE_STRING);
+    $site['php'] = filter_var($data['php'] ?? '', FILTER_SANITIZE_STRING);
+    $site['ip'] = filter_var($data['ip'] ?? '', FILTER_VALIDATE_IP) ?: '';
+    
+    // Updates validieren (nur Integer erlauben)
+    $site['updates'] = [
+        'core' => (int)($data['core'] ?? 0),
+        'plugins' => (int)($data['plugins'] ?? 0),
+        'themes' => (int)($data['themes'] ?? 0)
+    ];
+    
+    // Listen übernehmen (Struktur prüfen)
+    $site['plugin_list'] = is_array($data['plugin_list'] ?? null) ? $data['plugin_list'] : [];
+    $site['theme_list'] = is_array($data['theme_list'] ?? null) ? $data['theme_list'] : [];
+} else {
                     $site['status'] = 'offline';
                     $site['last_check'] = date('Y-m-d H:i:s');
                 }
