@@ -184,25 +184,37 @@ switch ($action) {
 
     case 'add_site':
         $sites = getSites($sitesFile);
+        
+        // 1. Eingaben validieren & bereinigen
+        $name = filter_var($_POST['name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS);
+        $url = filter_var($_POST['url'] ?? '', FILTER_VALIDATE_URL);
+        
+        if (!$url) {
+            echo json_encode(['success' => false, 'message' => 'Ungültige URL']);
+            exit;
+        }
+
         $newId = bin2hex(random_bytes(8));
         $apiKey = bin2hex(random_bytes(16));
+        
         $newSite = [
             'id' => $newId,
-            'name' => $_POST['name'] ?? 'Unbenannt',
-            'url' => rtrim($_POST['url'] ?? '', '/'),
+            'name' => $name, // Bereinigter Name
+            'url' => rtrim($url, '/'),
             'api_key' => $apiKey,
             'last_check' => null,
             'status' => 'pending',
-            'ip' => '',
-            'version' => '',
-            'php' => '',
             'updates' => ['core' => 0, 'plugins' => 0, 'themes' => 0],
             'plugin_list' => [],
             'theme_list' => []
         ];
+        
         $sites[] = $newSite;
-        if (saveSites($sitesFile, $sites)) echo json_encode(['success' => true, 'api_key' => $apiKey]);
-        else echo json_encode(['success' => false]);
+        if (saveSites($sitesFile, $sites)) {
+            echo json_encode(['success' => true, 'api_key' => $apiKey]);
+        } else {
+            echo json_encode(['success' => false]);
+        }
         break;
 
     case 'refresh_site':
