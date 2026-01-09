@@ -286,7 +286,33 @@ tr:last-child td {
 tr:hover td {
     background-color: #f8fafc;
 }
+/* Spezifische Spaltenausrichtung */
 
+/* Spalten 2, 3, 4 und 5 zentrieren (WP Version, PHP, Updates, Check) */
+table td:nth-child(2), 
+table td:nth-child(3), 
+table td:nth-child(4), 
+table td:nth-child(5),
+table th:nth-child(2), 
+table th:nth-child(3), 
+table th:nth-child(4), 
+table th:nth-child(5) {
+    text-align: center;
+}
+
+/* Letzte Spalte (Aktionen) rechts ausrichten */
+table td:last-child, 
+table th:last-child {
+    text-align: right;
+}
+
+/* Status-Indikator Punkt Styling */
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
 /* Status Badges */
 .badge {
     display: inline-block;
