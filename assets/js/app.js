@@ -54,6 +54,9 @@ const App = {
             
             this.sites = await response.json();
             
+            // Statistiken in den Karten oben aktualisieren
+            this.updateStats();
+            
             // Bestimmen, welche Ansicht gerade aktiv ist
             const urlParams = new URLSearchParams(window.location.search);
             const view = urlParams.get('view') || 'dashboard';
@@ -73,7 +76,8 @@ const App = {
             }
         }
     },
-/**
+
+    /**
      * Berechnet die Statistiken und befüllt die Dashboard-Karten
      */
     updateStats() {
@@ -95,22 +99,24 @@ const App = {
 
         const detailedUpdatesEl = document.getElementById('stat-detailed-updates');
         if (detailedUpdatesEl) {
-            if (plugins + themes + core > 0) {
+            const total = plugins + themes + core;
+            if (total > 0) {
                 detailedUpdatesEl.innerHTML = `
-                    <span class="text-warning">${plugins} Plugins</span>, 
-                    <span class="text-info">${themes} Themes</span>`;
+                    <span style="color: #d97706;">${plugins} Plugins</span>, 
+                    <span style="color: #2563eb;">${themes} Themes</span>`;
             } else {
                 detailedUpdatesEl.innerText = "Alle aktuell";
             }
         }
 
-        // 3. Letzter Check (Uhrzeit vom ersten Eintrag nehmen oder aktuell)
+        // 3. Letzter Check (Uhrzeit aktualisieren)
         const lastCheckEl = document.getElementById('last-update-time');
         if (lastCheckEl) {
             const now = new Date();
             lastCheckEl.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
     },
+
     /**
      * Neue Webseite hinzufügen
      */
@@ -134,11 +140,10 @@ const App = {
                 document.getElementById('addSiteModal').close();
                 form.reset();
                 
-                // Key im Erfolgs-Modal anzeigen
                 document.getElementById('generatedKeyDisplay').innerText = result.api_key;
                 document.getElementById('keySuccessModal').showModal();
                 
-                this.loadSites(); // UI im Hintergrund aktualisieren
+                this.loadSites();
             } else {
                 alert('Fehler: ' + result.message);
             }
@@ -235,6 +240,7 @@ const App = {
 
             if (result.success) {
                 this.sites = this.sites.map(s => s.id === siteId ? result.site : s);
+                this.updateStats(); // Auch Stats nach Einzelrefresh erneuern
                 if (typeof TableManager !== 'undefined') {
                     TableManager.renderDashboardTable(this.sites);
                 }
@@ -278,7 +284,7 @@ const App = {
     },
 
     /**
-     * Prüft auf System-Updates via GitHub (unter Berücksichtigung des Beta-Toggles)
+     * Prüft auf System-Updates via GitHub
      */
     async checkUpdates() {
         const statusDiv = document.getElementById('update-status');
@@ -286,36 +292,23 @@ const App = {
         
         if (!statusDiv) return;
 
-        // Sicherstellen, dass wir den aktuellen Stand des Toggles haben
         const isBeta = (betaToggle && betaToggle.checked) ? 'true' : 'false';
-        
-        // Beta-Status im LocalStorage merken
         localStorage.setItem('beta_enabled', isBeta);
 
-        // Optisches Feedback: Prüfung läuft
         statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
         statusDiv.className = "alert alert-info border-0";
 
         try {
-            // Die URL muss den Parameter &beta= enthalten
             const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
-            
-            if (!response.ok) {
-                throw new Error("Server-Antwort war nicht ok (HTTP " + response.status + ")");
-            }
+            if (!response.ok) throw new Error("Server-Fehler (HTTP " + response.status + ")");
 
             const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.message || "Fehler beim Update-Check");
-            }
+            if (!data.success) throw new Error(data.message || "Fehler beim Update-Check");
 
-            // Modus bestimmen (Stable oder Beta)
             const modeName = data.mode || (isBeta === 'true' ? 'Beta' : 'Stable');
             const modeLower = modeName.toLowerCase();
 
             if (data.update_available) {
-                // UPDATE VERFÜGBAR
                 statusDiv.className = "alert alert-warning border-0 d-flex align-items-center justify-content-between update-available-pulse";
                 statusDiv.innerHTML = `
                     <div>
@@ -323,21 +316,15 @@ const App = {
                             <span class="badge-${modeLower} me-2">${modeName}</span>
                             <strong style="color: #856404;">Update verfügbar!</strong>
                         </div>
-                        <small class="text-dark">Version <strong>${data.remote}</strong> ist bereit zur Installation (Deine Version: ${data.local})</small>
+                        <small class="text-dark">Version <strong>${data.remote}</strong> ist bereit (Installiert: ${data.local})</small>
                     </div>`;
                 
-                // Download-URL im versteckten Feld zwischenspeichern
                 const pendingInput = document.getElementById('pending-download-url');
-                if (pendingInput) {
-                    pendingInput.value = data.download_url;
-                }
+                if (pendingInput) pendingInput.value = data.download_url;
 
-                // Aktions-Buttons einblenden
                 const actions = document.getElementById('update-actions');
                 if (actions) actions.style.display = 'block';
-
             } else {
-                // SYSTEM AKTUELL
                 statusDiv.className = "alert alert-success border-0 d-flex align-items-center";
                 statusDiv.innerHTML = `
                     <i class="ph ph-check-circle me-3" style="font-size: 1.5rem;"></i>
@@ -346,93 +333,60 @@ const App = {
                         <span>VantixDash ist auf dem neuesten Stand (v${data.local})</span>
                     </div>`;
                 
-                // Aktions-Buttons ausblenden
                 const actions = document.getElementById('update-actions');
                 if (actions) actions.style.display = 'none';
-                
-                // URL Feld leeren
-                const pendingInput = document.getElementById('pending-download-url');
-                if (pendingInput) pendingInput.value = "";
             }
-
         } catch (e) {
             console.error("Update-Fehler:", e);
             statusDiv.className = "alert alert-danger border-0";
             statusDiv.innerHTML = `<i class="ph ph-warning me-2"></i> <strong>Fehler:</strong> ${e.message}`;
         }
     },
-/**
+
+    /**
      * Installiert das System-Update
      */
     async runUpdate() {
-        // 1. Das versteckte Eingabefeld suchen
         const urlInput = document.getElementById('pending-download-url');
-        
-        if (!urlInput) {
-            console.error("HTML-Fehler: Das Feld 'pending-download-url' fehlt in der settings_general.php");
-            alert("Systemfehler: Das notwendige HTML-Feld für das Update wurde nicht gefunden.");
+        if (!urlInput || !urlInput.value) {
+            alert("Fehler: Keine Update-Informationen gefunden.");
             return;
         }
 
-        const downloadUrl = urlInput.value;
+        if (!confirm("VantixDash jetzt aktualisieren?")) return;
         
-        // 2. Prüfen, ob eine URL im Feld gespeichert ist
-        if (!downloadUrl || downloadUrl.trim() === "") {
-            console.warn("Update-Abbruch: Keine Download-URL vorhanden.");
-            alert("Fehler: Keine Update-Informationen gefunden.\nBitte lade die Seite neu oder ändere kurz den Beta-Status, um die Suche neu zu starten.");
-            return;
-        }
-
-        // 3. Bestätigung vom Nutzer einholen
-        if (!confirm("VantixDash jetzt aktualisieren?\n\nDeine Konfiguration und deine Seiten-Daten bleiben erhalten. Systemdateien werden überschrieben.")) {
-            return;
-        }
-        
-        // 4. Button-Status visuell anpassen
         const btn = document.getElementById('start-update-btn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Update wird ausgeführt...';
+            btn.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Installiere...';
         }
 
         try {
-            // 5. POST-Anfrage an die API senden
             const formData = new FormData();
-            formData.append('url', downloadUrl);
+            formData.append('url', urlInput.value);
 
             const response = await fetch('api.php?action=install_update', {
                 method: 'POST',
                 body: formData
             });
             
-            // Text-Antwort holen, falls PHP einen Fehler (kein JSON) sendet
-            const textResponse = await response.text();
-            let data;
-            
-            try {
-                data = JSON.parse(textResponse);
-            } catch (jsonErr) {
-                console.error("PHP-Antwort ist kein gültiges JSON:", textResponse);
-                throw new Error("Der Server hat keine gültige Antwort gesendet.");
-            }
+            const data = await response.json();
             
             if (data.success) {
-                alert("Update erfolgreich abgeschlossen! Die Seite wird nun neu geladen.");
+                alert("Update erfolgreich! Seite wird neu geladen.");
                 window.location.reload();
             } else {
-                alert("Update fehlgeschlagen: " + (data.message || "Unbekannter Fehler"));
+                alert("Update fehlgeschlagen: " + data.message);
             }
         } catch (e) {
-            console.error("Update-Fehler:", e);
-            alert("Verbindung zur API fehlgeschlagen oder Serverfehler.\nDetails findest du in der Browser-Konsole.");
+            alert("Verbindung zur API fehlgeschlagen.");
         } finally {
-            // Button wieder freigeben, falls es kein Reload gab
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="ph ph-download-simple me-2"></i> Update jetzt installieren';
             }
         }
-    },
+    }
 };
 
 // Startpunkt
