@@ -161,23 +161,51 @@ class SiteService {
     ];
 }
     public function installUpdate($url) {
-        $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
-        $content = @file_get_contents($url, false, stream_context_create([
-            "http" => ["header" => "User-Agent: VantixDash-Updater\r\n"]
-        ]));
-        
-        if (!$content) return false;
-        file_put_contents($tempFile, $content);
+    $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
+    $extractPath = dirname(__DIR__) . '/';
 
-        $zip = new ZipArchive;
-        if ($zip->open($tempFile) === TRUE) {
-            $zip->extractTo(dirname(__DIR__) . '/');
-            $zip->close();
-            unlink($tempFile);
-            return true;
-        }
+    // cURL nutzen statt file_get_contents für bessere Fehlerbehandlung und Auth
+    $ch = curl_init($url);
+    $fp = fopen($tempFile, 'w+');
+
+    curl_setopt_array($ch, [
+        CURLOPT_FOLLOWLOCATION => true, // WICHTIG: Folgt dem Redirect zu codeload.github.com
+        CURLOPT_RETURNTRANSFER => false,
+        CURLOPT_BINARYTRANSFER => true,
+        CURLOPT_HEADER => false,
+        CURLOPT_FILE => $fp,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_USERAGENT => 'VantixDash-Updater',
+        CURLOPT_SSL_VERIFYPEER => true
+    ]);
+
+    // Falls du einen Token hast, sende ihn auch hier mit
+    $config = file_exists(dirname(__DIR__) . '/data/config.php') ? include dirname(__DIR__) . '/data/config.php' : [];
+    if (!empty($config['github_token'])) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: token " . $config['github_token']]);
+    }
+
+    $success = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    fclose($fp);
+
+    if (!$success || $httpCode !== 200) {
+        if (file_exists($tempFile)) unlink($tempFile);
         return false;
     }
+
+    // Entpacken
+    $zip = new ZipArchive;
+    if ($zip->open($tempFile) === TRUE) {
+        $zip->extractTo($extractPath);
+        $zip->close();
+        unlink($tempFile);
+        return true;
+    }
+    
+    return false;
+}
 
     private function save($sites) {
         return file_put_contents($this->file, json_encode(array_values($sites), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
