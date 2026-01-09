@@ -188,4 +188,69 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'Verbindungsfehler (HTTP '.$httpCode.')']);
         }
         break;
+	case 'check_update':
+    $local = include('version.php');
+    $remoteContent = @file_get_contents($local['remote_url']);
+    
+    if (!$remoteContent) {
+        echo json_encode(['success' => false, 'message' => 'GitHub nicht erreichbar']);
+        exit;
+    }
+
+    // Wir extrahieren die Version aus dem Remote-PHP-Code per Regex
+    preg_match("/'version' => '(.+?)'/", $remoteContent, $matches);
+    $remoteVersion = $matches[1] ?? '0.0.0';
+
+    echo json_encode([
+        'success' => true,
+        'local' => $local['version'],
+        'remote' => $remoteVersion,
+        'update_available' => version_compare($remoteVersion, $local['version'], '>')
+    ]);
+    break;
+
+case 'install_update':
+    // 1. ZIP von GitHub laden (Die automatische ZIP-Funktion von GitHub)
+    $repoZip = "https://github.com/olpo24/VantixDash/archive/refs/heads/main.zip";
+    $tempZip = __DIR__ . '/data/update_temp.zip';
+    
+    if (!copy($repoZip, $tempZip)) {
+        echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
+        exit;
+    }
+
+    $zip = new ZipArchive;
+    if ($zip->open($tempZip) === TRUE) {
+        // Entpacken in einen Unterordner
+        $extractPath = __DIR__ . '/data/temp_extract/';
+        $zip->extractTo($extractPath);
+        $zip->close();
+
+        // GitHub packt alles in VantixDash-main/, wir müssen die Dateien eine Ebene hochschieben
+        $source = $extractPath . 'VantixDash-main/';
+        
+        // Dateien kopieren (außer config.php und data/)
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+        
+        foreach ($files as $file) {
+            $destPath = __DIR__ . '/' . $files->getSubPathName();
+            if ($file->isDir()) {
+                if (!is_dir($destPath)) mkdir($destPath);
+            } else {
+                // Sicherheitscheck: Überschreibe niemals deine config.php oder den data-Ordner!
+                if (basename($destPath) !== 'config.php' && strpos($destPath, '/data/') === false) {
+                    copy($file, $destPath);
+                }
+            }
+        }
+
+        // Aufräumen
+        unlink($tempZip);
+        // (Ordner löschen Funktion hier optional)
+        
+        echo json_encode(['success' => true, 'message' => 'Update erfolgreich installiert!']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'ZIP konnte nicht geöffnet werden']);
+    }
+    break;
 }
