@@ -143,56 +143,47 @@ switch ($action) {
 
     case 'install_update':
         $downloadUrl = $_POST['url'] ?? '';
-        if (empty($downloadUrl)) {
-            echo json_encode(['success' => false, 'message' => 'Download-URL fehlt']);
+
+        // 1. DOMAIN-WHITELIST PRÜFEN (GitHub Only)
+        // Verhindert, dass bösartige Scripte von fremden Servern geladen werden
+        if (!preg_match('/^https:\/\/(github\.com|api\.github\.com|raw\.githubusercontent\.com)\/olpo24\/VantixDash\//', $downloadUrl)) {
+            echo json_encode(['success' => false, 'message' => 'Sicherheitsfehler: Ungültige Update-Quelle!']);
             exit;
         }
-        $tempZip = $dataDir . '/update_temp.zip';
-        $extractPath = $dataDir . '/temp_extract/';
-        $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-Updater\r\n"]];
-        $context = stream_context_create($opts);
-        $fileContent = @file_get_contents($downloadUrl, false, $context);
-        
-        if ($fileContent === false) {
-            echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
-            exit;
-        }
-        file_put_contents($tempZip, $fileContent);
 
-        $zip = new ZipArchive;
-        if ($zip->open($tempZip) === TRUE) {
-            if (!is_dir($extractPath)) mkdir($extractPath, 0755, true);
-            $zip->extractTo($extractPath);
-            $zip->close();
+        // 2. Pfade definieren
+        $tempFile = __DIR__ . '/data/update_temp.zip';
+        $extractPath = __DIR__ . '/';
 
-            $sourceRoot = $extractPath;
-            $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
-            if (count($subDirs) === 1 && empty(glob($extractPath . '*.php'))) {
-                $sourceRoot = reset($subDirs) . '/';
+        try {
+            // Download mit Timeout & User-Agent (GitHub verlangt oft einen User-Agent)
+            $opts = [
+                "http" => [
+                    "method" => "GET",
+                    "header" => "User-Agent: VantixDash-Updater\r\n"
+                ]
+            ];
+            $context = stream_context_create($opts);
+            $fileContent = @file_get_contents($downloadUrl, false, $context);
+
+            if ($fileContent === false) {
+                throw new Error("Download fehlgeschlagen.");
             }
 
-            $sourceRoot = rtrim($sourceRoot, '/') . '/';
-            $files = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($sourceRoot, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::SELF_FIRST
-            );
-
-            foreach ($files as $file) {
-                $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
-                $destPath = $baseDir . '/' . $relativePath;
-                if ($file->isDir()) {
-                    if (!is_dir($destPath)) mkdir($destPath, 0755, true);
-                } else {
-                    $filename = basename($destPath);
-                    if ($filename !== 'config.php' && strpos($destPath, '/data/') === false) {
-                        copy($file->getRealPath(), $destPath);
-                    }
-                }
+            // ZIP speichern und entpacken
+            file_put_contents($tempFile, $fileContent);
+            
+            $zip = new ZipArchive;
+            if ($zip->open($tempFile) === TRUE) {
+                $zip->extractTo($extractPath);
+                $zip->close();
+                unlink($tempFile); // Aufräumen
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Error("ZIP konnte nicht geöffnet werden.");
             }
-            if (file_exists($tempZip)) unlink($tempZip);
-            echo json_encode(['success' => true]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'ZIP-Fehler']);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         break;
 
