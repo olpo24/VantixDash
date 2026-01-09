@@ -17,7 +17,9 @@ function getAttempts($file) {
 $ip = $_SERVER['REMOTE_ADDR'];
 $attempts = getAttempts($attemptsFile);
 $now = time();
-
+$attempts = array_filter($attempts, function($a) use ($now) {
+    return ($now - $a['last_attempt']) < 86400; // Entfernt alles, was älter als 24h ist
+});
 // 1. Brute-Force Sperre prüfen (15 Min Sperre nach 5 Fehlern)
 if (isset($attempts[$ip]) && $attempts[$ip]['count'] >= 5 && ($now - $attempts[$ip]['last_attempt']) < 900) {
     $remaining = 15 - floor(($now - $attempts[$ip]['last_attempt']) / 60);
