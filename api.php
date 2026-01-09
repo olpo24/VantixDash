@@ -6,7 +6,7 @@
 
 // Fehlerberichterstattung für Debugging
 error_reporting(E_ALL);
-ini_set('display_errors', 0); // Verhindert, dass PHP-Fehler das JSON-Format zerstören
+ini_set('display_errors', 0); 
 
 header('Content-Type: application/json');
 
@@ -56,7 +56,7 @@ switch ($action) {
             $context = stream_context_create($opts);
 
             if ($useBeta) {
-                // Beta via GitHub Branch (Raw version.php lesen)
+                // Beta via GitHub Branch
                 $apiUrl = "https://raw.githubusercontent.com/olpo24/VantixDash/beta/version.php";
                 $content = @file_get_contents($apiUrl, false, $context);
                 if ($content) {
@@ -71,7 +71,21 @@ switch ($action) {
                 if ($content) {
                     $release = json_decode($content, true);
                     $remoteVersion = str_replace('v', '', $release['tag_name'] ?? '0.0.0');
-                    $downloadUrl = $release['zipball_url'] ?? '';
+                    
+                    // Suche nach dem spezifischen Release-Asset (VantixDash_vX.Y.Z.zip)
+                    if (!empty($release['assets'])) {
+                        foreach ($release['assets'] as $asset) {
+                            if (strpos($asset['name'], 'VantixDash_') === 0 && strpos($asset['name'], '.zip') !== false) {
+                                $downloadUrl = $asset['browser_download_url'];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Fallback auf die Standard-Source-ZIP von GitHub
+                    if (empty($downloadUrl)) {
+                        $downloadUrl = $release['zipball_url'] ?? '';
+                    }
                 }
             }
 
@@ -98,13 +112,13 @@ switch ($action) {
         $tempZip = $dataDir . '/update_temp.zip';
         $extractPath = $dataDir . '/temp_extract/';
 
-        // 1. Download mit User-Agent
+        // 1. Download
         $opts = ["http" => ["method" => "GET", "header" => "User-Agent: VantixDash-Updater\r\n"]];
         $context = stream_context_create($opts);
         $fileContent = @file_get_contents($downloadUrl, false, $context);
         
         if ($fileContent === false) {
-            echo json_encode(['success' => false, 'message' => 'Download von GitHub fehlgeschlagen']);
+            echo json_encode(['success' => false, 'message' => 'Download fehlgeschlagen']);
             exit;
         }
         file_put_contents($tempZip, $fileContent);
@@ -116,39 +130,37 @@ switch ($action) {
             $zip->extractTo($extractPath);
             $zip->close();
 
-            // Root-Ordner im GitHub-ZIP finden
+            // Check: Wurde die ZIP von unserem Workflow (direkte Struktur) oder GitHub (Unterordner) erstellt?
             $subDirs = array_filter(glob($extractPath . '*'), 'is_dir');
-            $sourceRoot = reset($subDirs);
+            $sourceRoot = $extractPath; // Standard: Dateien liegen direkt im Extrakt-Pfad
 
-            if ($sourceRoot) {
-                $sourceRoot = rtrim($sourceRoot, '/') . '/';
-                $files = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($sourceRoot, RecursiveDirectoryIterator::SKIP_DOTS),
-                    RecursiveIteratorIterator::SELF_FIRST
-                );
-
-               foreach ($files as $file) {
-    $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
-    $destPath = $baseDir . '/' . $relativePath;
-
-    if ($file->isDir()) {
-        if (!is_dir($destPath)) mkdir($destPath, 0755, true);
-    } else {
-        $filename = basename($destPath);
-        
-        // REGEL: Überschreibe alles, AUẞER config.php und den /data/ Ordner
-        // Die version.php MUSS überschrieben werden.
-        $isConfig = ($filename === 'config.php');
-        $isDataFolder = (strpos($destPath, '/data/') !== false);
-
-        if (!$isConfig && !$isDataFolder) {
-            copy($file->getRealPath(), $destPath);
-        }
-    }
-}
+            // Falls es doch einen GitHub-Unterordner gibt (Fallback)
+            if (count($subDirs) === 1 && empty(glob($extractPath . '*.php'))) {
+                $sourceRoot = reset($subDirs) . '/';
             }
 
-            // 3. Sicherer Cleanup
+            $sourceRoot = rtrim($sourceRoot, '/') . '/';
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($sourceRoot, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($files as $file) {
+                $relativePath = str_replace($sourceRoot, '', $file->getRealPath());
+                $destPath = $baseDir . '/' . $relativePath;
+
+                if ($file->isDir()) {
+                    if (!is_dir($destPath)) mkdir($destPath, 0755, true);
+                } else {
+                    $filename = basename($destPath);
+                    // Schutz: Config und Datenordner nie überschreiben
+                    if ($filename !== 'config.php' && strpos($destPath, '/data/') === false) {
+                        copy($file->getRealPath(), $destPath);
+                    }
+                }
+            }
+
+            // 3. Cleanup
             if (file_exists($tempZip)) unlink($tempZip);
             if (is_dir($extractPath)) {
                 $it = new RecursiveIteratorIterator(
@@ -163,7 +175,7 @@ switch ($action) {
             
             echo json_encode(['success' => true]);
         } else {
-            echo json_encode(['success' => false, 'message' => 'ZIP-Archiv konnte nicht geöffnet werden']);
+            echo json_encode(['success' => false, 'message' => 'ZIP-Archiv korrupt']);
         }
         break;
 
@@ -205,10 +217,9 @@ switch ($action) {
                 $site['name'] = $_POST['name'] ?? $site['name'];
                 $site['url'] = rtrim($_POST['url'] ?? $site['url'], '/');
                 
-                // Falls ein neuer Key generiert werden soll
                 if (isset($_POST['regen_key']) && $_POST['regen_key'] === 'true') {
                     $site['api_key'] = bin2hex(random_bytes(16));
-                    $found = $site['api_key']; // Geben wir zur Anzeige zurück
+                    $found = $site['api_key'];
                 } else {
                     $found = true;
                 }
@@ -242,7 +253,6 @@ switch ($action) {
         
         foreach ($sites as &$site) {
             if ($site['id'] === $id) {
-                // Dummy Refresh Logik - hier würde der WP-API Call stattfinden
                 $site['last_check'] = date('Y-m-d H:i:s');
                 $site['status'] = 'online';
                 
