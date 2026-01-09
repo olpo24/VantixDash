@@ -69,11 +69,36 @@ table td:last-child, table th:last-child { text-align: right; }
 .status-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
 /* 4. MODAL STYLING */
-.modal-base { border: none; border-radius: var(--radius); padding: 0; width: 95%; max-width: 550px; box-shadow: var(--shadow-lg); }
+
+.modal-base {
+    border: none;
+    border-radius: var(--radius);
+    padding: 0;
+    width: 90%;
+    max-width: 550px;
+    box-shadow: var(--shadow-lg);
+    /* Fix für das "Kleben" in der Ecke: */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0; 
+}
+/* Verhindert das Scrollen des Hintergrunds, wenn Modal offen ist */
+body:has(dialog[open]) {
+    overflow: hidden;
+}
 .modal-base::backdrop { background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); }
 .modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
 .modal-body { padding: 1.5rem; }
-
+.modal-footer {
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    background: #f8fafc;
+}
 .details-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
 .detail-item label { display: block; font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); }
 .detail-item div { font-weight: 600; font-size: 0.9rem; }
@@ -94,3 +119,13 @@ table td:last-child, table th:last-child { text-align: right; }
 .btn-icon { background: transparent; border: 1px solid var(--border); padding: 0.5rem; border-radius: 6px; cursor: pointer; color: var(--text-muted); transition: var(--transition); }
 .btn-icon:hover { color: var(--primary); border-color: var(--primary); background: #eff6ff; }
 .mt-4 { margin-top: 1.5rem; }
+.btn-secondary {
+    background: #e2e8f0;
+    color: var(--text-main);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
