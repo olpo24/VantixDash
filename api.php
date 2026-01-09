@@ -38,7 +38,13 @@ function getSites($file) {
 }
 
 function saveSites($file, $sites) {
-    return file_put_contents($file, json_encode(array_values($sites), JSON_PRETTY_PRINT));
+    try {
+        $jsonData = json_encode(array_values($sites), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        return file_put_contents($file, $jsonData);
+    } catch (JsonException $e) {
+        error_log("JSON Encoding Fehler: " . $e->getMessage());
+        return false;
+    }
 }
 
 $action = $_GET['action'] ?? '';
