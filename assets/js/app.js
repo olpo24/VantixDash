@@ -241,42 +241,89 @@ const App = {
     },
 
     /**
-     * Prüft auf System-Updates via GitHub
+     * Prüft auf System-Updates via GitHub (unter Berücksichtigung des Beta-Toggles)
      */
     async checkUpdates() {
         const statusDiv = document.getElementById('update-status');
         const betaToggle = document.getElementById('beta-toggle');
         
-        // Sicherstellen, dass wir den aktuellen Stand des Toggles haben
-        const isBeta = betaToggle && betaToggle.checked ? 'true' : 'false';
-        
-        console.log("Prüfe auf Updates. Beta-Modus:", isBeta); // Schau in die F12 Konsole!
+        if (!statusDiv) return;
 
-        statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
+        // Sicherstellen, dass wir den aktuellen Stand des Toggles haben
+        const isBeta = (betaToggle && betaToggle.checked) ? 'true' : 'false';
         
-        // Die URL muss den Parameter enthalten
-        const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
+        // Beta-Status im LocalStorage merken
+        localStorage.setItem('beta_enabled', isBeta);
+
+        // Optisches Feedback: Prüfung läuft
+        statusDiv.innerHTML = '<i class="ph ph-circle-notch ph-spin me-2"></i> Prüfe auf Updates...';
+        statusDiv.className = "alert alert-info border-0";
+
+        try {
+            // Die URL muss den Parameter &beta= enthalten
+            const response = await fetch(`api.php?action=check_update&beta=${isBeta}&t=${Date.now()}`);
+            
+            if (!response.ok) {
+                throw new Error("Server-Antwort war nicht ok (HTTP " + response.status + ")");
+            }
+
             const data = await response.json();
             
+            if (!data.success) {
+                throw new Error(data.message || "Fehler beim Update-Check");
+            }
+
+            // Modus bestimmen (Stable oder Beta)
+            const modeName = data.mode || (isBeta === 'true' ? 'Beta' : 'Stable');
+            const modeLower = modeName.toLowerCase();
+
             if (data.update_available) {
-				const pendingInput = document.getElementById('pending-download-url');
-    if (pendingInput) {
-        pendingInput.value = data.download_url; // Hier wird die URL gesetzt!
-        console.log("Download-URL gespeichert:", data.download_url); // Zum Testen im Browser (F12)
-    }
-                statusDiv.className = "alert alert-warning border-0";
-                statusDiv.innerHTML = `<strong>Update verfügbar!</strong> Version ${data.remote} ist bereit (Aktuell: ${data.local})`;
+                // UPDATE VERFÜGBAR
+                statusDiv.className = "alert alert-warning border-0 d-flex align-items-center justify-content-between update-available-pulse";
+                statusDiv.innerHTML = `
+                    <div>
+                        <div class="mb-1">
+                            <span class="badge-${modeLower} me-2">${modeName}</span>
+                            <strong style="color: #856404;">Update verfügbar!</strong>
+                        </div>
+                        <small class="text-dark">Version <strong>${data.remote}</strong> ist bereit zur Installation (Deine Version: ${data.local})</small>
+                    </div>`;
+                
+                // Download-URL im versteckten Feld zwischenspeichern
+                const pendingInput = document.getElementById('pending-download-url');
+                if (pendingInput) {
+                    pendingInput.value = data.download_url;
+                }
+
+                // Aktions-Buttons einblenden
                 const actions = document.getElementById('update-actions');
                 if (actions) actions.style.display = 'block';
+
             } else {
-                statusDiv.className = "alert alert-success border-0";
-                statusDiv.innerHTML = `VantixDash ist auf dem neuesten Stand (v${data.local})`;
+                // SYSTEM AKTUELL
+                statusDiv.className = "alert alert-success border-0 d-flex align-items-center";
+                statusDiv.innerHTML = `
+                    <i class="ph ph-check-circle me-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <span class="badge-${modeLower} me-2">${modeName}</span>
+                        <span>VantixDash ist auf dem neuesten Stand (v${data.local})</span>
+                    </div>`;
+                
+                // Aktions-Buttons ausblenden
+                const actions = document.getElementById('update-actions');
+                if (actions) actions.style.display = 'none';
+                
+                // URL Feld leeren
+                const pendingInput = document.getElementById('pending-download-url');
+                if (pendingInput) pendingInput.value = "";
             }
+
         } catch (e) {
-            statusDiv.innerHTML = "Fehler bei der Update-Prüfung.";
+            console.error("Update-Fehler:", e);
+            statusDiv.className = "alert alert-danger border-0";
+            statusDiv.innerHTML = `<i class="ph ph-warning me-2"></i> <strong>Fehler:</strong> ${e.message}`;
         }
     },
-
 /**
      * Installiert das System-Update
      */
