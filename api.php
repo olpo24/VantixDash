@@ -69,14 +69,22 @@ switch ($action) {
         echo json_encode($updateInfo);
         break;
 
-    case 'install_update':
-        $downloadUrl = $_POST['url'] ?? '';
-        
-        // SICHERHEIT: GitHub-Whitelist (dein Regex-Fix)
-       $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com|raw\.githubusercontent\.com)\/olpo24\/VantixDash\//i';
+   case 'install_update':
+    $downloadUrl = $_POST['url'] ?? '';
 
-    if (!preg_match($pattern, $downloadUrl)) {
-        echo json_encode(['success' => false, 'message' => 'Sicherheitsfehler: Ungültige Update-Quelle (' . htmlspecialchars($downloadUrl) . ')']);
+    // VERBESSERTER REGEX:
+    // Erlaubt api.github.com, github.com und codeload.github.com
+    // Stellt sicher, dass /olpo24/VantixDash/ im Pfad vorkommt
+    $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com)\/repos\/olpo24\/VantixDash\/(zipball|archive)\//i';
+    
+    // Falls die URL direkt von github.com (nicht API) kommt, ist das Format leicht anders:
+    $pattern2 = '/^https:\/\/github\.com\/olpo24\/VantixDash\/(archive|releases)\//i';
+
+    if (!preg_match($pattern, $downloadUrl) && !preg_match($pattern2, $downloadUrl)) {
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Sicherheitsfehler: Ungültige Update-Quelle! Die URL muss von deinem GitHub-Repo stammen.'
+        ]);
         exit;
     }
 
