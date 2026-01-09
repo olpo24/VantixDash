@@ -12,7 +12,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 }
 
 // Prüfen ob eingeloggt
-if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header("Location: login.php");
     exit;
 }
