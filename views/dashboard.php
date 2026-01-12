@@ -1,7 +1,7 @@
 <?php
 /**
  * views/dashboard.php
- * Native Dashboard-Ansicht mit Update-Indikatoren und Modals
+ * Vollständig bereinigte Version ohne Inline-Styles.
  */
 
 if (!isset($siteService)) exit;
@@ -22,8 +22,10 @@ $sites = $siteService->getAll();
 
     <?php if (empty($sites)): ?>
         <div class="card empty-state">
-            <i class="ph ph-detective"></i>
-            <p>Keine Seiten gefunden. <a href="index.php?view=add_site">Füge deine erste Seite hinzu.</a></p>
+            <div class="empty-state-content">
+                <i class="ph ph-detective"></i>
+                <p>Keine Seiten gefunden. <a href="index.php?view=add_site">Füge deine erste Seite hinzu.</a></p>
+            </div>
         </div>
     <?php else: ?>
         <div class="dashboard-grid">
@@ -52,7 +54,7 @@ $sites = $siteService->getAll();
                                 <span><?php echo $site['updates']['themes']; ?></span>
                             </div>
                         </div>
-                        <p class="site-meta">v<?php echo htmlspecialchars($site['wp_version']); ?> • <?php echo $site['last_check']; ?></p>
+                        <p class="site-meta">v<?php echo htmlspecialchars($site['wp_version'] ?? $site['version']); ?> • <?php echo $site['last_check'] ?? 'Nie geprüft'; ?></p>
                     </div>
 
                     <div class="card-footer">
@@ -76,7 +78,6 @@ $sites = $siteService->getAll();
             <button onclick="closeModal()" class="close-modal"><i class="ph ph-x"></i></button>
         </div>
         <div id="modal-body" class="modal-body">
-            <div class="loader-spinner"><i class="ph ph-circle-notch"></i></div>
-        </div>
+            </div>
     </div>
 </div>
