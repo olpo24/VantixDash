@@ -86,20 +86,20 @@ if (isset($_POST['delete_id'])) {
                                 </div>
                             </td>
                             <td style="text-align: right;">
-                                <div class="action-buttons">
-                                    <button class="icon-btn refresh" onclick="refreshSite('<?php echo $site['id']; ?>')" title="Aktualisieren">
-                                        <i class="ph ph-arrows-counter-clockwise"></i>
-                                    </button>
-                                    
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Möchtest du diese Seite wirklich löschen?');">
-                                        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                                        <input type="hidden" name="delete_id" value="<?php echo $site['id']; ?>">
-                                        <button type="submit" class="icon-btn delete" title="Löschen">
-                                            <i class="ph ph-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+    <div class="action-buttons">
+        <a href="index.php?view=edit_site&id=<?php echo $site['id']; ?>" class="icon-btn edit" title="Bearbeiten">
+            <i class="ph ph-pencil-simple"></i>
+        </a>
+        
+        <form method="POST" style="display:inline;" onsubmit="return confirm('Möchtest du diese Seite wirklich löschen?');">
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+            <input type="hidden" name="delete_id" value="<?php echo $site['id']; ?>">
+            <button type="submit" class="icon-btn delete" title="Löschen">
+                <i class="ph ph-trash"></i>
+            </button>
+        </form>
+    </div>
+</td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
