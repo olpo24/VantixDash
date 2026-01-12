@@ -166,4 +166,17 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(`Update-Funktion für ${slug} wird in Kürze implementiert.`);
         // Hier würde später der Fetch-Aufruf an api.php?action=update_resource folgen
     };
+	window.loginToSite = async (id) => {
+    try {
+        const response = await fetch(`api.php?action=login_site&id=${id}`);
+        const result = await response.json();
+        if (result.success && result.login_url) {
+            window.open(result.login_url, '_blank');
+        } else {
+            alert("Login fehlgeschlagen: " + (result.message || "Unbekannter Fehler"));
+        }
+    } catch (e) {
+        console.error("Login Error:", e);
+    }
+};
 });
