@@ -26,6 +26,7 @@ $allowedViews = [
     'dashboard'        => 'views/dashboard.php',
     'manage_sites'     => 'views/manage_sites.php',
     'add_site'         => 'views/add_site.php',
+    'edit_site'         => 'views/edit_site.php',
     'settings_general' => 'views/settings_general.php',
     'settings_profile' => 'views/settings_profile.php'
 ];
