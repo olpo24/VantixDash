@@ -1,63 +1,47 @@
 /**
- * VantixDash - Haupt-JavaScript
- * Verwaltet Update-Prüfungen und Installationen
+ * VantixDash - Haupt-JavaScript (Native Version)
  */
 
 document.addEventListener('DOMContentLoaded', function() {
     
-    // 1. CSRF-Token zentral abrufen
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    // 2. Elemente für das Update-System
     const updateContainer = document.getElementById('update-container');
     const updateBtn = document.getElementById('start-update-btn');
     const versionSpan = document.getElementById('new-version-number');
 
     /**
-     * FUNKTION: Update-Prüfung beim Laden der Seite
+     * Update-Prüfung beim Laden
      */
-    function checkForUpdates() {
-        // Hinweis: beta=true/false könnte man auch aus einem Config-Attribut lesen
+    if (updateContainer) {
         fetch('api.php?action=check_update&beta=false')
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
                 if (data.success && data.update_available) {
-                    if (updateContainer && versionSpan && updateBtn) {
-                        versionSpan.innerText = data.remote;
-                        updateBtn.setAttribute('data-url', data.download_url);
-                        updateContainer.classList.remove('d-none');
-                    }
+                    versionSpan.innerText = data.remote;
+                    updateBtn.setAttribute('data-url', data.download_url);
+                    updateContainer.style.display = 'block'; // Natives Anzeigen
                 }
             })
-            .catch(error => console.error('Fehler bei Update-Prüfung:', error));
+            .catch(err => console.error('Update-Check fehlgeschlagen', err));
     }
 
     /**
-     * FUNKTION: Update-Installation starten
+     * Update-Installation
      */
     if (updateBtn) {
         updateBtn.addEventListener('click', function() {
-            const downloadUrl = this.getAttribute('data-url');
+            const url = this.getAttribute('data-url');
 
-            if (!downloadUrl) {
-                alert('Keine Download-URL gefunden.');
-                return;
-            }
+            if (!confirm(`Update auf v${versionSpan.innerText} jetzt starten?`)) return;
 
-            if (!confirm('Möchtest du das Update v' + versionSpan.innerText + ' jetzt installieren?\nAlle Systemdateien werden überschrieben. Deine Einstellungen bleiben erhalten.')) {
-                return;
-            }
-
-            // UI-Status: Laden
+            // Button-Status: Loading (Nativ)
             updateBtn.disabled = true;
-            updateBtn.innerHTML = `
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                Installiere Update...
-            `;
+            updateBtn.innerText = 'Wird installiert...';
+            updateBtn.style.opacity = '0.6';
+            updateBtn.style.cursor = 'not-allowed';
 
-            // FormData für den POST-Request vorbereiten
             const formData = new URLSearchParams();
-            formData.append('url', downloadUrl);
+            formData.append('url', url);
 
             fetch('api.php?action=install_update', {
                 method: 'POST',
@@ -67,40 +51,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: formData
             })
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    // Erfolg: Button grün färben und Seite neu laden
-                    updateBtn.classList.replace('btn-primary', 'btn-success');
-                    updateBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Update erfolgreich!';
+                    updateBtn.innerText = 'Erfolgreich! Lade neu...';
+                    updateBtn.style.backgroundColor = '#28a745'; // Erfolgsgrün
+                    updateBtn.style.color = '#fff';
                     
-                    // Kurze Pause für das visuelle Feedback, dann Reload
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
+                    setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    // Fehlerfall
-                    alert('Update fehlgeschlagen: ' + data.message);
-                    resetUpdateBtn(updateBtn);
+                    alert('Fehler: ' + data.message);
+                    resetButton();
                 }
             })
-            .catch(error => {
-                console.error('Install Error:', error);
-                alert('Ein kritischer Netzwerkfehler ist aufgetreten.');
-                resetUpdateBtn(updateBtn);
+            .catch(err => {
+                alert('Netzwerkfehler beim Update.');
+                resetButton();
             });
         });
     }
 
-    // Hilfsfunktion: Button zurücksetzen
-    function resetUpdateBtn(btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-cloud-download me-2"></i> Erneut versuchen';
-        btn.classList.add('btn-danger');
-    }
-
-    // Init: Update-Check sofort ausführen
-    if (updateContainer) {
-        checkForUpdates();
+    function resetButton() {
+        updateBtn.disabled = false;
+        updateBtn.innerText = 'Erneut versuchen';
+        updateBtn.style.opacity = '1';
+        updateBtn.style.backgroundColor = '#dc3545'; // Fehlerrot
+        updateBtn.style.color = '#fff';
     }
 });
