@@ -9,37 +9,100 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Modal Funktionen
      */
-    window.openDetails = async (siteId) => {
-        const modal = document.getElementById('details-modal');
-        const modalBody = document.getElementById('modal-body');
-        modal.style.display = 'flex';
-        modalBody.innerHTML = '<div class="loader-spinner"><i class="ph ph-circle-notch"></i></div>';
+window.openDetails = async (id) => {
+    const modal = document.getElementById('details-modal');
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+    
+    modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch animate-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
+    modal.style.display = 'flex';
 
-        try {
-            // Wir rufen die API auf, um die aktuellen Daten der Seite aus der JSON zu erhalten
-            // Falls deine api.php noch keine "get_site" Aktion hat, nutzen wir hier einen Workaround
-            const response = await fetch(`api.php?action=refresh_site&id=${siteId}`);
-            const result = await response.json();
+    try {
+        // Wir holen die aktuellen Daten direkt aus der sites.json via API
+        const response = await fetch(`api.php?action=refresh_site&id=${id}`);
+        const result = await response.json();
 
-            if (result.success && result.data) {
-                renderModalContent(result.data);
+        if (result.success && result.data) {
+            const site = result.data;
+            modalTitle.innerText = `Details: ${site.name}`;
+
+            let html = `
+                <div class="site-info-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; font-size:0.9rem;">
+                    <div class="card" style="padding:10px; background:var(--bg-color);"><strong>WordPress:</strong> ${site.wp_version}</div>
+                    <div class="card" style="padding:10px; background:var(--bg-color);"><strong>PHP:</strong> ${site.php}</div>
+                </div>
+            `;
+
+            // --- PLUGINS SEKTION ---
+            html += `<h4 style="margin-bottom:10px; display:flex; align-items:center; gap:8px;"><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>`;
+            
+            if (site.plugin_list && site.plugin_list.length > 0) {
+                html += `<div class="plugin-list" style="display:grid; gap:8px; margin-bottom:20px;">`;
+                site.plugin_list.forEach(plugin => {
+                    html += `
+                        <div class="item-row" style="padding:10px; border:1px solid var(--border-color); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-weight:600;">${plugin.name}</div>
+                                <div style="font-size:0.8rem; color:var(--text-muted);">${plugin.old_version}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="badge" style="background:rgba(255, 107, 107, 0.1); color:#ff6b6b; padding:4px 8px; border-radius:5px; font-size:0.8rem; font-weight:600;">
+                                    <i class="ph ph-arrow-right"></i> ${plugin.new_version}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
             } else {
-                modalBody.innerHTML = `<p class="alert error"><i class="ph ph-warning"></i> Fehler: ${result.message || 'Daten konnten nicht geladen werden.'}</p>`;
+                html += `<p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:20px;">Alle Plugins sind auf dem neuesten Stand.</p>`;
             }
-        } catch (error) {
-            modalBody.innerHTML = '<p class="alert error">Netzwerkfehler beim Laden der Details.</p>';
+
+            // --- THEMES SEKTION ---
+            html += `<h4 style="margin-bottom:10px; display:flex; align-items:center; gap:8px;"><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>`;
+            
+            if (site.theme_list && site.theme_list.length > 0) {
+                html += `<div class="theme-list" style="display:grid; gap:8px;">`;
+                site.theme_list.forEach(theme => {
+                    html += `
+                        <div class="item-row" style="padding:10px; border:1px solid var(--border-color); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-weight:600;">${theme.name}</div>
+                                <div style="font-size:0.8rem; color:var(--text-muted);">${theme.old_version}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="badge" style="background:rgba(255, 107, 107, 0.1); color:#ff6b6b; padding:4px 8px; border-radius:5px; font-size:0.8rem; font-weight:600;">
+                                    <i class="ph ph-arrow-right"></i> ${theme.new_version}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            } else {
+                html += `<p style="color:var(--text-muted); font-size:0.9rem;">Alle Themes sind auf dem neuesten Stand.</p>`;
+            }
+
+            modalBody.innerHTML = html;
+        } else {
+            modalBody.innerHTML = `<p style="color:red;">Fehler beim Laden der Daten: ${result.message}</p>`;
         }
-    };
+    } catch (e) {
+        modalBody.innerHTML = `<p style="color:red;">Netzwerkfehler: ${e.message}</p>`;
+    }
+};
 
-    window.closeModal = () => {
-        document.getElementById('details-modal').style.display = 'none';
-    };
+window.closeModal = () => {
+    document.getElementById('details-modal').style.display = 'none';
+};
 
-    // Schließen bei Klick außerhalb des Modals
-    window.onclick = (event) => {
-        const modal = document.getElementById('details-modal');
-        if (event.target == modal) closeModal();
-    };
+// Schließen beim Klick außerhalb des Modals
+window.onclick = (event) => {
+    const modal = document.getElementById('details-modal');
+    if (event.target == modal) {
+        closeModal();
+    }
+};
 
     /**
      * Rendert den Inhalt des Modals basierend auf der sites.json Struktur
