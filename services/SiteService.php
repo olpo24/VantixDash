@@ -161,12 +161,12 @@ class SiteService {
     /**
      * Lädt das ZIP herunter und installiert das Update
      */
-    public function installUpdate($url) {
+   public function installUpdate($url) {
     $basePath = dirname(__DIR__) . '/';
     $tempFile = $basePath . 'data/update_temp.zip';
     $token = $this->config->get('github_token');
 
-    // 1. Download des ZIP-Archivs
+    // 1. Download
     $ch = curl_init($url);
     $fp = fopen($tempFile, 'w+');
     $headers = ['User-Agent: VantixDash-Updater'];
@@ -176,48 +176,79 @@ class SiteService {
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_FILE => $fp,
         CURLOPT_TIMEOUT => 60,
-        CURLOPT_HTTPHEADER => $headers
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_SSL_VERIFYPEER => true
     ]);
 
     $success = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     fclose($fp);
 
-    if (!$success || $httpCode !== 200) {
-        if (file_exists($tempFile)) unlink($tempFile);
-        return false;
-    }
+    if (!$success) return false;
 
-    // 2. ZIP entpacken
+    // 2. Entpacken
     $zip = new ZipArchive;
     if ($zip->open($tempFile) === TRUE) {
         $zip->extractTo($basePath);
         $zip->close();
         unlink($tempFile);
 
-        // 3. Korrektur der GitHub-Ordnerstruktur
-        // Wir suchen nach dem von GitHub erstellten Ordner (z.B. olpo24-VantixDash-xxx)
-        $dirs = glob($basePath . 'olpo24-VantixDash-*', GLOB_ONLYDIR);
+        // 3. GitHub-Ordner finden (wir suchen nach dem Präfix 'olpo24-VantixDash-')
+        $allFiles = scandir($basePath);
+        $githubDir = null;
+        foreach ($allFiles as $f) {
+            if (is_dir($basePath . $f) && strpos($f, 'olpo24-VantixDash-') === 0) {
+                $githubDir = $basePath . $f;
+                break;
+            }
+        }
         
-        if (!empty($dirs)) {
-            $sourceDir = $dirs[0]; // Der erste gefundene GitHub-Ordner
+        if ($githubDir) {
+            // 4. Dateien aus dem Unterordner ins Root verschieben
+            $this->moveRecursive($githubDir, $basePath);
             
-            // Alle Dateien und Unterordner finden
-            $files = scandir($sourceDir);
-            foreach ($files as $file) {
-                if ($file === '.' || $file === '..') continue;
-                
-                // Verschiebe Datei/Ordner vom Unterordner ins Hauptverzeichnis
-                rename($sourceDir . '/' . $file, $basePath . $file);
+            // 5. Den nun leeren GitHub-Ordner löschen
+            $this->deleteDir($githubDir);
+            
+            // 6. OPcache löschen (falls vorhanden), damit PHP die neuen Dateien sofort lädt
+            if (function_exists('opcache_reset')) {
+                opcache_reset();
             }
             
-            // Den leeren GitHub-Unterordner löschen
-            rmdir($sourceDir);
+            return true;
         }
-        return true;
     }
-    
     return false;
+}
+
+/**
+ * Hilfsmethode: Verschiebt Dateien und Ordner rekursiv
+ */
+private function moveRecursive($src, $dest) {
+    $files = array_diff(scandir($src), ['.', '..']);
+    foreach ($files as $file) {
+        $currentSrc = $src . '/' . $file;
+        $currentDest = $dest . '/' . $file;
+        
+        if (is_dir($currentSrc)) {
+            if (!is_dir($currentDest)) mkdir($currentDest, 0755, true);
+            $this->moveRecursive($currentSrc, $currentDest);
+        } else {
+            // Überschreibt existierende Dateien im Ziel
+            rename($currentSrc, $currentDest);
+        }
+    }
+}
+
+/**
+ * Hilfsmethode: Löscht einen Ordner rekursiv (für den Cleanup)
+ */
+private function deleteDir($dirPath) {
+    if (!is_dir($dirPath)) return;
+    $files = array_diff(scandir($dirPath), ['.', '..']);
+    foreach ($files as $file) {
+        (is_dir("$dirPath/$file")) ? $this->deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
+    }
+    return rmdir($dirPath);
 }
 }
