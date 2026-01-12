@@ -69,45 +69,58 @@ class SiteService {
      * Ruft Live-Daten von einer WordPress-Seite ab (via Child Plugin)
      */
     public function refreshSiteData($id) {
-        $sites = $this->getAll();
-        foreach ($sites as &$site) {
-            if ($site['id'] === $id) {
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $site['url'] . '/wp-content/plugins/vantix-child/api.php',
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT => 15,
-                    CURLOPT_HTTPHEADER => [
-                        'X-Vantix-Key: ' . $site['api_key'],
-                        'Content-Type: application/json'
+    $sites = $this->getAll();
+    foreach ($sites as &$site) {
+        if ($site['id'] === $id) {
+            // Die korrekte REST-Route laut deiner Angabe
+            $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
+            
+            $options = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => [
+                        "X-API-KEY: " . $site['api_key'],
+                        "User-Agent: VantixDash-Monitor/1.0"
                     ],
-                    CURLOPT_SSL_VERIFYPEER => true 
-                ]);
+                    'timeout' => 15,
+                    'ignore_errors' => true // Erlaubt uns, den Status-Code selbst zu prüfen
+                ]
+            ];
+            
+            $context = stream_context_create($options);
+            $response = @file_get_contents($apiUrl, false, $context);
 
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-
-                if ($httpCode === 200 && $response) {
-                    $data = json_decode($response, true);
-                    if (isset($data['success']) && $data['success'] === true) {
-                        $site['status'] = 'online';
-                        $site['last_check'] = date('d.m.Y H:i');
-                        $site['updates'] = $data['updates'];
-                        $site['wp_version'] = $data['version'] ?? 'Unbekannt';
-                    } else {
-                        $site['status'] = 'error';
-                    }
-                } else {
-                    $site['status'] = 'offline';
+            if ($response) {
+                $data = json_decode($response, true);
+                
+                // Wir prüfen, ob die Antwort valide Daten enthält
+                if (isset($data['version']) || isset($data['updates'])) {
+                    $site['status'] = 'online';
+                    $site['wp_version'] = $data['version'] ?? ($data['wp_version'] ?? $site['wp_version']);
+                    $site['php'] = $data['php'] ?? $site['php'];
+                    $site['updates'] = [
+                        'core' => (int)($data['updates']['core'] ?? 0),
+                        'plugins' => (int)($data['updates']['plugins'] ?? 0),
+                        'themes' => (int)($data['updates']['themes'] ?? 0)
+                    ];
+                    $site['details'] = $data['details'] ?? $site['details'];
+                    $site['last_check'] = date('Y-m-d H:i:s');
+                    $site['ip'] = $_SERVER['REMOTE_ADDR']; // Optional: IP der Anfrage speichern
+                    
+                    $this->save($sites);
+                    return $site;
                 }
-                $this->save($sites);
-                return $site;
             }
+            
+            // Wenn die Verbindung fehlschlägt oder der Key falsch ist
+            $site['status'] = 'offline';
+            $site['last_check'] = date('Y-m-d H:i:s');
+            $this->save($sites);
+            return false;
         }
-        return false;
     }
-
+    return false;
+}
     /**
      * Prüft auf Updates im GitHub Repository
      */
