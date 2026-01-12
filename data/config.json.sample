@@ -1,0 +1,8 @@
+{
+    "username": "admin",
+    "email": "test@example.com",
+    "password_hash": "$2y$10$...",
+    "github_token": "ghp_...",
+    "2fa_enabled": false,
+    "2fa_secret": null
+}
