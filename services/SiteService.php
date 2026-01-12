@@ -162,41 +162,62 @@ class SiteService {
      * Lädt das ZIP herunter und installiert das Update
      */
     public function installUpdate($url) {
-        $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
-        $extractPath = dirname(__DIR__) . '/';
-        $token = $this->config->get('github_token');
+    $basePath = dirname(__DIR__) . '/';
+    $tempFile = $basePath . 'data/update_temp.zip';
+    $token = $this->config->get('github_token');
 
-        $ch = curl_init($url);
-        $fp = fopen($tempFile, 'w+');
+    // 1. Download des ZIP-Archivs
+    $ch = curl_init($url);
+    $fp = fopen($tempFile, 'w+');
+    $headers = ['User-Agent: VantixDash-Updater'];
+    if (!empty($token)) $headers[] = "Authorization: token $token";
 
-        $headers = ['User-Agent: VantixDash-Updater'];
-        if (!empty($token)) $headers[] = "Authorization: token $token";
+    curl_setopt_array($ch, [
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_FILE => $fp,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => $headers
+    ]);
 
-        curl_setopt_array($ch, [
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_FILE => $fp,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_HTTPHEADER => $headers
-        ]);
+    $success = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    fclose($fp);
 
-        $success = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        fclose($fp);
-
-        if (!$success || $httpCode !== 200) {
-            if (file_exists($tempFile)) unlink($tempFile);
-            return false;
-        }
-
-        $zip = new ZipArchive;
-        if ($zip->open($tempFile) === TRUE) {
-            $zip->extractTo($extractPath);
-            $zip->close();
-            unlink($tempFile);
-            return true;
-        }
-        
+    if (!$success || $httpCode !== 200) {
+        if (file_exists($tempFile)) unlink($tempFile);
         return false;
     }
+
+    // 2. ZIP entpacken
+    $zip = new ZipArchive;
+    if ($zip->open($tempFile) === TRUE) {
+        $zip->extractTo($basePath);
+        $zip->close();
+        unlink($tempFile);
+
+        // 3. Korrektur der GitHub-Ordnerstruktur
+        // Wir suchen nach dem von GitHub erstellten Ordner (z.B. olpo24-VantixDash-xxx)
+        $dirs = glob($basePath . 'olpo24-VantixDash-*', GLOB_ONLYDIR);
+        
+        if (!empty($dirs)) {
+            $sourceDir = $dirs[0]; // Der erste gefundene GitHub-Ordner
+            
+            // Alle Dateien und Unterordner finden
+            $files = scandir($sourceDir);
+            foreach ($files as $file) {
+                if ($file === '.' || $file === '..') continue;
+                
+                // Verschiebe Datei/Ordner vom Unterordner ins Hauptverzeichnis
+                rename($sourceDir . '/' . $file, $basePath . $file);
+            }
+            
+            // Den leeren GitHub-Unterordner löschen
+            rmdir($sourceDir);
+        }
+        return true;
+    }
+    
+    return false;
+}
 }
