@@ -41,18 +41,24 @@ $sites = $siteService->getAll();
                     
                     <div class="card-body">
                         <div class="update-overview">
-                            <div class="update-pill <?php echo ($site['updates']['core'] > 0) ? 'has-updates' : ''; ?>" title="Core Updates">
-                                <i class="ph ph-cpu"></i>
-                                <span><?php echo $site['updates']['core']; ?></span>
-                            </div>
-                            <div class="update-pill <?php echo ($site['updates']['plugins'] > 0) ? 'has-updates' : ''; ?>" title="Plugins">
-                                <i class="ph ph-plug"></i>
-                                <span><?php echo $site['updates']['plugins']; ?></span>
-                            </div>
-                            <div class="update-pill <?php echo ($site['updates']['themes'] > 0) ? 'has-updates' : ''; ?>" title="Themes">
-                                <i class="ph ph-palette"></i>
-                                <span><?php echo $site['updates']['themes']; ?></span>
-                            </div>
+    <?php $coreUpdates = (int)($site['updates']['core'] ?? 0); ?>
+    <div class="update-pill <?php echo ($coreUpdates > 0) ? 'has-updates' : ''; ?>" title="Core Updates">
+        <i class="ph ph-cpu"></i>
+        <span><?php echo $coreUpdates; ?></span>
+    </div>
+
+    <?php $pluginUpdates = (int)($site['updates']['plugins'] ?? 0); ?>
+    <div class="update-pill <?php echo ($pluginUpdates > 0) ? 'has-updates' : ''; ?>" title="Plugins">
+        <i class="ph ph-plug"></i>
+        <span><?php echo $pluginUpdates; ?></span>
+    </div>
+
+    <?php $themeUpdates = (int)($site['updates']['themes'] ?? 0); ?>
+    <div class="update-pill <?php echo ($themeUpdates > 0) ? 'has-updates' : ''; ?>" title="Themes">
+        <i class="ph ph-palette"></i>
+        <span><?php echo $themeUpdates; ?></span>
+    </div>
+</div>
                         </div>
                         <p class="site-meta">v<?php echo htmlspecialchars($site['wp_version'] ?? $site['version']); ?> • <?php echo $site['last_check'] ?? 'Nie geprüft'; ?></p>
                     </div>
