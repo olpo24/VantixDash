@@ -1,20 +1,27 @@
 <?php
 /**
- * VantixDash - Zentrale API Schnittstelle
- * Sicherheit: CSRF-Schutz, Session-Validierung, Domain-Whitelisting
+ * VantixDash - Zentrale API Schnittstelle (Controller)
+ * Architektur: Nutzt ConfigService & SiteService
  */
 
 session_start();
 header('Content-Type: application/json');
 
-// 1. AUTHENTIFIZIERUNGSPRÜFUNG
+// 1. SERVICES LADEN
+require_once __DIR__ . '/services/ConfigService.php';
+require_once __DIR__ . '/services/SiteService.php';
+
+$configService = new ConfigService();
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
+
+// 2. AUTHENTIFIZIERUNGSPRÜFUNG
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert']);
     exit;
 }
 
-// 2. CSRF-SCHUTZ (Nur für POST-Anfragen)
+// 3. CSRF-SCHUTZ (Nur für POST-Anfragen)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
     if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
@@ -24,15 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 3. SERVICES LADEN
-require_once __DIR__ . '/services/SiteService.php';
-$sitesFile = __DIR__ . '/data/sites.json';
-$siteService = new SiteService($sitesFile);
-
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
     
+    // --- SEITEN VERWALTUNG ---
+
     case 'get_sites':
         echo json_encode($siteService->getAll());
         break;
@@ -62,38 +66,40 @@ switch ($action) {
         echo json_encode(['success' => (bool)$updatedSite, 'site' => $updatedSite]);
         break;
 
+
+    // --- SYSTEM UPDATES ---
+
     case 'check_update':
-        $beta = ($_GET['beta'] ?? 'false') === 'true';
-        // Logik für GitHub Update-Check
+        // Beta-Kanal Prüfung (true/false)
+        $beta = (isset($_GET['beta']) && $_GET['beta'] === 'true');
         $updateInfo = $siteService->checkAppUpdate($beta);
         echo json_encode($updateInfo);
         break;
 
-   case 'install_update':
-    $downloadUrl = $_POST['url'] ?? '';
+    case 'install_update':
+        $downloadUrl = $_POST['url'] ?? '';
 
-    // VERBESSERTER REGEX:
-    // Erlaubt api.github.com, github.com und codeload.github.com
-    // Stellt sicher, dass /olpo24/VantixDash/ im Pfad vorkommt
-    $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com)\/repos\/olpo24\/VantixDash\/(zipball|archive)\//i';
-    
-    // Falls die URL direkt von github.com (nicht API) kommt, ist das Format leicht anders:
-    $pattern2 = '/^https:\/\/github\.com\/olpo24\/VantixDash\/(archive|releases)\//i';
+        // SICHERHEIT: Whitelist für GitHub Pfade (Regex-Fix)
+        $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com)\/repos\/olpo24\/VantixDash\/(zipball|archive)\//i';
+        $pattern2 = '/^https:\/\/github\.com\/olpo24\/VantixDash\/(archive|releases)\//i';
 
-    if (!preg_match($pattern, $downloadUrl) && !preg_match($pattern2, $downloadUrl)) {
-        echo json_encode([
-            'success' => false, 
-            'message' => 'Sicherheitsfehler: Ungültige Update-Quelle! Die URL muss von deinem GitHub-Repo stammen.'
-        ]);
-        exit;
-    }
+        if (!preg_match($pattern, $downloadUrl) && !preg_match($pattern2, $downloadUrl)) {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Sicherheitsfehler: Ungültige Update-Quelle! URL muss von olpo24/VantixDash stammen.'
+            ]);
+            exit;
+        }
 
-    $success = $siteService->installUpdate($downloadUrl);
-    echo json_encode(['success' => $success]);
-    break;
+        $success = $siteService->installUpdate($downloadUrl);
+        echo json_encode(['success' => $success]);
+        break;
+
+
+    // --- DEFAULT ---
 
     default:
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion']);
+        echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion: ' . htmlspecialchars($action)]);
         break;
 }
