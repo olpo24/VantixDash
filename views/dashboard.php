@@ -48,7 +48,7 @@ $sites = $siteService->getAll();
                             $core    = (int)($site['updates']['core'] ?? 0);
                         ?>
                         <tr data-id="<?php echo $id; ?>">
-                            <td>
+                            <td style="text-align: center;">
                                 <span class="status-indicator <?php echo $status; ?>" 
                                       title="Status: <?php echo $status; ?>"
                                       style="margin: 0 auto;"></span>
