@@ -67,9 +67,9 @@ $sites = $siteService->getAll();
                         <button class="action-link" onclick="openDetails('<?php echo $site['id']; ?>')">
                             <i class="ph ph-magnifying-glass"></i> Details
                         </button>
-                        <button class="action-link refresh-single" onclick="refreshSite('<?php echo $site['id']; ?>')">
-                            <i class="ph ph-arrows-clockwise"></i> Prüfen
-                        </button>
+                       <button class="action-link refresh-single" onclick="refreshSite('<?php echo $site['id']; ?>')">
+    <i class="ph ph-arrows-clockwise"></i> Prüfen
+</button>
                     </div>
                 </div>
             <?php endforeach; ?>
