@@ -90,26 +90,26 @@ class SiteService {
             $context = stream_context_create($options);
             $response = @file_get_contents($apiUrl, false, $context);
 
-            if ($response) {
-                $data = json_decode($response, true);
-                
-                // Wir prüfen, ob die Antwort valide Daten enthält
-                if (isset($data['version']) || isset($data['updates'])) {
-                    $site['status'] = 'online';
-                    $site['wp_version'] = $data['version'] ?? ($data['wp_version'] ?? $site['wp_version']);
-                    $site['php'] = $data['php'] ?? $site['php'];
-                    $site['updates'] = [
-                        'core' => (int)($data['updates']['core'] ?? 0),
-                        'plugins' => (int)($data['updates']['plugins'] ?? 0),
-                        'themes' => (int)($data['updates']['themes'] ?? 0)
-                    ];
-                    $site['details'] = $data['details'] ?? $site['details'];
-                    $site['last_check'] = date('Y-m-d H:i:s');
-                    $site['ip'] = $_SERVER['REMOTE_ADDR']; // Optional: IP der Anfrage speichern
-                    
-                    $this->save($sites);
-                    return $site;
-                }
+            // In services/SiteService.php innerhalb von refreshSiteData()
+if ($response) {
+    $data = json_decode($response, true);
+    if ($data) {
+        // Sicherstellen, dass 'updates' immer ein Array mit Integern ist
+        $site['updates'] = [
+            'core'    => (int)($data['updates']['core'] ?? 0),
+            'plugins' => (int)($data['updates']['plugins'] ?? 0),
+            'themes'  => (int)($data['updates']['themes'] ?? 0)
+        ];
+        
+        // Den Rest der Daten mappen...
+        $site['details'] = $data['details'] ?? $site['details'];
+        $site['wp_version'] = $data['version'] ?? $site['wp_version'];
+        $site['last_check'] = date('Y-m-d H:i:s');
+
+        $this->save($sites);
+        return $site;
+    }
+}
             }
             
             // Wenn die Verbindung fehlschlägt oder der Key falsch ist
