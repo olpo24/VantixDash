@@ -30,7 +30,7 @@ class SiteService {
     /**
      * Speichert die Webseiten-Liste
      */
-    private function save($sites) {
+    public function save($sites) {
         return file_put_contents(
             $this->file, 
             json_encode(array_values($sites), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
