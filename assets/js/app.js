@@ -1,285 +1,159 @@
 /**
- * VantixDash - Haupt-JavaScript (Native Version)
+ * VantixDash - Main Application JS
  */
 
-const App = {
-    sites: [],
-    
-    /**
-     * Lädt alle Webseiten vom Server
-     */
-    loadSites() {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
-        fetch('api.php?action=get_sites', {
-            headers: { 'X-CSRF-TOKEN': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
-            this.sites = data;
-            if (typeof TableManager !== 'undefined') {
-                TableManager.renderDashboardTable(data);
-            }
-            this.updateStats(data);
-        })
-        .catch(err => console.error('Fehler beim Laden der Seiten', err));
-    },
-
-    /**
-     * Aktualisiert die Dashboard-Statistiken
-     */
-    updateStats(sites) {
-        const totalSites = document.getElementById('stat-total-sites');
-        const detailedUpdates = document.getElementById('stat-detailed-updates');
-        const lastUpdate = document.getElementById('last-update-time');
-        
-        if (totalSites) totalSites.innerText = sites.length;
-        
-        let coreCount = 0, pluginCount = 0, themeCount = 0;
-        sites.forEach(s => {
-            const u = s.updates || {};
-            coreCount += parseInt(u.core) || 0;
-            pluginCount += parseInt(u.plugins) || 0;
-            themeCount += parseInt(u.themes) || 0;
-        });
-        
-        if (detailedUpdates) {
-            const parts = [];
-            if (coreCount > 0) parts.push(`${coreCount} Core`);
-            if (pluginCount > 0) parts.push(`${pluginCount} Plugins`);
-            if (themeCount > 0) parts.push(`${themeCount} Themes`);
-            detailedUpdates.innerText = parts.length > 0 ? parts.join(' • ') : 'Keine';
-        }
-        
-        if (lastUpdate) {
-            lastUpdate.innerText = new Date().toLocaleTimeString('de-DE', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-        }
-    },
-
-    /**
-     * Aktualisiert eine einzelne Webseite
-     */
-    refreshSite(siteId, event) {
-        if (event) event.stopPropagation();
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const formData = new URLSearchParams();
-        formData.append('id', siteId);
-        
-        fetch('api.php?action=refresh_site', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-TOKEN': csrfToken
-            },
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                this.loadSites();
-            } else {
-                alert('Fehler beim Aktualisieren');
-            }
-        })
-        .catch(err => console.error('Fehler', err));
-    },
-
-    /**
-     * Login zu einer WordPress-Seite
-     */
-    loginToSite(siteId) {
-        const site = this.sites.find(s => s.id === siteId);
-        if (!site) return;
-        
-        alert('Login-Funktion für: ' + site.name);
-        // Hier die eigentliche Login-Logik implementieren
-    },
-
-    /**
-     * Löscht eine Webseite
-     */
-    deleteSite(siteId) {
-        if (!confirm('Webseite wirklich löschen?')) return;
-        
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        const formData = new URLSearchParams();
-        formData.append('id', siteId);
-        
-        fetch('api.php?action=delete_site', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-TOKEN': csrfToken
-            },
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Fehler beim Löschen');
-            }
-        })
-        .catch(err => console.error('Fehler', err));
-    },
-
-    /**
-     * Prüft auf VantixDash System-Updates
-     */
-    checkAppUpdates() {
-        const beta = localStorage.getItem('vantix_beta') === 'true';
-        const banner = document.getElementById('app-update-banner');
-        const versionTag = document.getElementById('new-version-tag');
-        
-        fetch(`api.php?action=check_update&beta=${beta}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.update_available) {
-                if (banner) {
-                    banner.style.display = 'flex';
-                    if (versionTag) {
-                        versionTag.innerHTML = `<span class="badge" style="background: #dcfce7; color: #166534;">v${data.remote}</span>`;
-                    }
-                }
-                
-                // Update-Container für settings_general
-                const updateContainer = document.getElementById('update-container');
-                const updateBtn = document.getElementById('start-update-btn');
-                const versionSpan = document.getElementById('new-version-number');
-                
-                if (updateContainer && updateBtn && versionSpan) {
-                    versionSpan.innerText = data.remote;
-                    updateBtn.setAttribute('data-url', data.download_url);
-                    updateContainer.style.display = 'block';
-                }
-            } else if (banner) {
-                banner.style.display = 'none';
-            }
-        })
-        .catch(err => console.error('Update-Check fehlgeschlagen', err));
-    },
-
-    /**
-     * Formatiert ein Datum
-     */
-    formatDate(dateStr) {
-        if (!dateStr || dateStr === 'Nie') return 'Nie';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('de-DE', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-};
-
-/**
- * Utils-Objekt für Hilfsfunktionen
- */
-const Utils = {
-    escapeHTML(str) {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-};
-
-/**
- * Globale Funktionen für Settings-Views
- */
-function toggleBeta(checked) {
-    localStorage.setItem('vantix_beta', checked ? 'true' : 'false');
-    App.checkAppUpdates();
-}
-
-function checkAppUpdates() {
-    App.checkAppUpdates();
-}
-
-/**
- * Initialisierung beim Laden
- */
-document.addEventListener('DOMContentLoaded', function() {
-    
+document.addEventListener('DOMContentLoaded', () => {
+    // CSRF Token aus dem Meta-Tag holen
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    const updateContainer = document.getElementById('update-container');
-    const updateBtn = document.getElementById('start-update-btn');
-    const versionSpan = document.getElementById('new-version-number');
 
     /**
-     * Update-Prüfung beim Laden (für settings_general)
+     * Modal Funktionen
      */
-    if (updateContainer) {
-        fetch('api.php?action=check_update&beta=false')
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.update_available) {
-                    versionSpan.innerText = data.remote;
-                    updateBtn.setAttribute('data-url', data.download_url);
-                    updateContainer.style.display = 'block';
-                }
-            })
-            .catch(err => console.error('Update-Check fehlgeschlagen', err));
-    }
+    window.openDetails = async (siteId) => {
+        const modal = document.getElementById('details-modal');
+        const modalBody = document.getElementById('modal-body');
+        modal.style.display = 'flex';
+        modalBody.innerHTML = '<div class="loader-spinner"><i class="ph ph-circle-notch"></i></div>';
+
+        try {
+            // Wir rufen die API auf, um die aktuellen Daten der Seite aus der JSON zu erhalten
+            // Falls deine api.php noch keine "get_site" Aktion hat, nutzen wir hier einen Workaround
+            const response = await fetch(`api.php?action=refresh_site&id=${siteId}`);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                renderModalContent(result.data);
+            } else {
+                modalBody.innerHTML = `<p class="alert error"><i class="ph ph-warning"></i> Fehler: ${result.message || 'Daten konnten nicht geladen werden.'}</p>`;
+            }
+        } catch (error) {
+            modalBody.innerHTML = '<p class="alert error">Netzwerkfehler beim Laden der Details.</p>';
+        }
+    };
+
+    window.closeModal = () => {
+        document.getElementById('details-modal').style.display = 'none';
+    };
+
+    // Schließen bei Klick außerhalb des Modals
+    window.onclick = (event) => {
+        const modal = document.getElementById('details-modal');
+        if (event.target == modal) closeModal();
+    };
 
     /**
-     * Update-Installation
+     * Rendert den Inhalt des Modals basierend auf der sites.json Struktur
      */
-    if (updateBtn) {
-        updateBtn.addEventListener('click', function() {
-            const url = this.getAttribute('data-url');
+    function renderModalContent(site) {
+        const modalBody = document.getElementById('modal-body');
+        document.getElementById('modal-title').innerText = `Details: ${site.name}`;
 
-            if (!confirm(`Update auf v${versionSpan.innerText} jetzt starten?`)) return;
+        let html = `
+            <div class="site-detail-info">
+                <p><strong>URL:</strong> ${site.url}</p>
+                <p><strong>PHP:</strong> ${site.php || 'Unbekannt'} | <strong>WP:</strong> ${site.wp_version || site.version}</p>
+            </div>
+            <hr>
+        `;
 
-            // Button-Status: Loading
-            updateBtn.disabled = true;
-            updateBtn.innerText = 'Wird installiert...';
-            updateBtn.style.opacity = '0.6';
-            updateBtn.style.cursor = 'not-allowed';
+        // 1. Core Updates
+        if (site.updates.core > 0) {
+            html += `
+                <div class="update-section core-update">
+                    <h4><i class="ph ph-cpu"></i> WordPress Core</h4>
+                    <div class="update-item">Ein neues WordPress Update ist verfügbar.</div>
+                </div>
+            `;
+        }
 
-            const formData = new URLSearchParams();
-            formData.append('url', url);
-
-            fetch('api.php?action=install_update', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    updateBtn.innerText = 'Erfolgreich! Lade neu...';
-                    updateBtn.style.backgroundColor = '#28a745';
-                    updateBtn.style.color = '#fff';
-                    
-                    setTimeout(() => window.location.reload(), 1500);
-                } else {
-                    alert('Fehler: ' + data.message);
-                    resetButton();
-                }
-            })
-            .catch(err => {
-                alert('Netzwerkfehler beim Update.');
-                resetButton();
+        // 2. Plugins
+        html += `<div class="update-section"><h4><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>`;
+        if (site.details.plugins && site.details.plugins.length > 0) {
+            site.details.plugins.forEach(plugin => {
+                html += `
+                    <div class="update-item">
+                        <div class="update-info">
+                            <strong>${plugin.name}</strong>
+                            <span>${plugin.version} <i class="ph ph-arrow-right"></i> ${plugin.update_version}</span>
+                        </div>
+                        <button class="mini-btn" onclick="updateItem('${site.id}', 'plugin', '${plugin.slug}')">Update</button>
+                    </div>`;
             });
-        });
+        } else {
+            html += '<p class="text-muted">Alle Plugins sind aktuell.</p>';
+        }
+        html += `</div>`;
+
+        // 3. Themes
+        html += `<div class="update-section"><h4><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>`;
+        if (site.details.themes && site.details.themes.length > 0) {
+            site.details.themes.forEach(theme => {
+                html += `
+                    <div class="update-item">
+                        <div class="update-info">
+                            <strong>${theme.name}</strong>
+                            <span>${theme.version} <i class="ph ph-arrow-right"></i> ${theme.update_version}</span>
+                        </div>
+                        <button class="mini-btn" onclick="updateItem('${site.id}', 'theme', '${theme.slug}')">Update</button>
+                    </div>`;
+            });
+        } else {
+            html += '<p class="text-muted">Alle Themes sind aktuell.</p>';
+        }
+        html += `</div>`;
+
+        modalBody.innerHTML = html;
     }
 
-    function resetButton() {
-        updateBtn.disabled = false;
-        updateBtn.innerText = 'Erneut versuchen';
-        updateBtn.style.opacity = '1';
-        updateBtn.style.backgroundColor = '#dc3545';
-        updateBtn.style.color = '#fff';
-    }
+    /**
+     * Einzelne Seite aktualisieren (API Check)
+     */
+    window.refreshSite = async (id) => {
+        const card = document.querySelector(`.site-card[data-id="${id}"]`);
+        const btn = card.querySelector('.refresh-single i');
+        
+        btn.classList.add('ph-spin'); // Animation starten
+
+        try {
+            const response = await fetch(`api.php?action=refresh_site&id=${id}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                // Seite neu laden um Änderungen im Dashboard zu sehen
+                window.location.reload();
+            } else {
+                alert("Fehler beim Prüfen: " + result.message);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            btn.classList.remove('ph-spin');
+        }
+    };
+
+    /**
+     * Alle Seiten nacheinander prüfen
+     */
+    window.refreshAllSites = async () => {
+        const cards = document.querySelectorAll('.site-card');
+        const icon = document.getElementById('refresh-all-icon');
+        icon.classList.add('ph-spin');
+
+        for (const card of cards) {
+            const id = card.getAttribute('data-id');
+            await refreshSite(id);
+        }
+
+        icon.classList.remove('ph-spin');
+    };
+
+    /**
+     * Platzhalter für Update-Aktionen (Plugin/Theme/Core)
+     */
+    window.updateItem = async (siteId, type, slug) => {
+        if (!confirm(`Möchtest du dieses ${type} wirklich aktualisieren?`)) return;
+        
+        alert(`Update-Funktion für ${slug} wird in Kürze implementiert.`);
+        // Hier würde später der Fetch-Aufruf an api.php?action=update_resource folgen
+    };
 });
