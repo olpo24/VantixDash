@@ -230,11 +230,16 @@ private function moveRecursive($src, $dest) {
         $currentSrc = $src . '/' . $file;
         $currentDest = $dest . '/' . $file;
         
+        // WICHTIG: Deine persönlichen Daten NIEMALS überschreiben
+        if ($file === 'config.json' || $file === 'sites.json' || $file === '.htaccess') {
+            continue; 
+        }
+
         if (is_dir($currentSrc)) {
             if (!is_dir($currentDest)) mkdir($currentDest, 0755, true);
             $this->moveRecursive($currentSrc, $currentDest);
         } else {
-            // Überschreibt existierende Dateien im Ziel
+            // Systemdateien (einschließlich der neuen version.php aus dem ZIP) überschreiben
             rename($currentSrc, $currentDest);
         }
     }
@@ -249,6 +254,21 @@ private function deleteDir($dirPath) {
     foreach ($files as $file) {
         (is_dir("$dirPath/$file")) ? $this->deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
     }
+    /**
+ * Aktualisiert die lokale version.php nach einem erfolgreichen Update
+ */
+private function updateVersionFile($newVersion) {
+    $versionFile = dirname(__DIR__) . '/version.php';
+    $content = "<?php\n\n";
+    $content .= "// Automatisch generiert durch VantixDash Updater\n";
+    $content .= "return [\n";
+    $content .= "    'version' => '" . htmlspecialchars($newVersion) . "',\n";
+    $content .= "    'last_update' => '" . date('Y-m-d H:i:s') . "',\n";
+    $content .= "    'branch' => 'main'\n";
+    $content .= "];\n";
+
+    return file_put_contents($versionFile, $content);
+}
     return rmdir($dirPath);
 }
 }
