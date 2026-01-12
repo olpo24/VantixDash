@@ -1,13 +1,25 @@
 <?php
+/**
+ * SiteService - Zentrale Geschäftslogik für VantixDash
+ * Verwaltet Webseiten-Daten, WordPress-Abfragen und System-Updates.
+ */
 
 class SiteService {
     private $file;
+    private $config;
 
-    public function __construct($file) {
+    /**
+     * @param string $file Pfad zur sites.json
+     * @param ConfigService $config Instanz des zentralen Config-Service
+     */
+    public function __construct($file, ConfigService $config) {
         $this->file = $file;
+        $this->config = $config;
     }
 
-    // Geändert von private auf public, damit api.php darauf zugreifen kann
+    /**
+     * Lädt alle registrierten Webseiten
+     */
     public function getAll() {
         if (!file_exists($this->file)) return [];
         $content = file_get_contents($this->file);
@@ -15,6 +27,19 @@ class SiteService {
         return is_array($data) ? array_values($data) : [];
     }
 
+    /**
+     * Speichert die Webseiten-Liste
+     */
+    private function save($sites) {
+        return file_put_contents(
+            $this->file, 
+            json_encode(array_values($sites), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    /**
+     * Fügt eine neue Webseite hinzu
+     */
     public function addSite($name, $url) {
         $sites = $this->getAll();
         $newSite = [
@@ -24,18 +49,25 @@ class SiteService {
             'api_key' => bin2hex(random_bytes(16)),
             'last_check' => 'Nie',
             'status' => 'pending',
+            'wp_version' => '?',
             'updates' => ['core' => 0, 'plugins' => 0, 'themes' => 0]
         ];
         $sites[] = $newSite;
         return $this->save($sites) ? $newSite : false;
     }
 
+    /**
+     * Löscht eine Webseite
+     */
     public function deleteSite($id) {
         $sites = $this->getAll();
         $filtered = array_filter($sites, fn($s) => $s['id'] !== $id);
         return $this->save($filtered);
     }
 
+    /**
+     * Ruft Live-Daten von einer WordPress-Seite ab (via Child Plugin)
+     */
     public function refreshSiteData($id) {
         $sites = $this->getAll();
         foreach ($sites as &$site) {
@@ -76,138 +108,95 @@ class SiteService {
         return false;
     }
 
+    /**
+     * Prüft auf Updates im GitHub Repository
+     */
     public function checkAppUpdate($beta = false) {
-    // 1. Grundeinstellungen
-    $currentVersion = '1.0.0'; 
-    $repo = "olpo24/VantixDash";
-    $configFile = dirname(__DIR__) . '/data/config.php';
-    
-    // Config laden für den GitHub-Token
-    $config = file_exists($configFile) ? include $configFile : [];
-    $token = $config['github_token'] ?? '';
+        $currentVersion = $this->config->getVersion();
+        $token = $this->config->get('github_token');
+        $repo = "olpo24/VantixDash";
+        
+        $url = $beta 
+            ? "https://api.github.com/repos/$repo/releases" 
+            : "https://api.github.com/repos/$repo/releases/latest";
 
-    // 2. URL bestimmen (Releases-Liste für Beta, Latest für Stable)
-    $url = $beta 
-        ? "https://api.github.com/repos/$repo/releases" 
-        : "https://api.github.com/repos/$repo/releases/latest";
+        $ch = curl_init();
+        $headers = [
+            'User-Agent: VantixDash-Updater',
+            'Accept: application/vnd.github.v3+json'
+        ];
+        if (!empty($token)) $headers[] = "Authorization: token $token";
 
-    // 3. cURL Initialisierung
-    $ch = curl_init();
-    $headers = [
-        'User-Agent: VantixDash-Updater',
-        'Accept: application/vnd.github.v3+json'
-    ];
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_HTTPHEADER => $headers
+        ]);
 
-    // Wenn ein Token vorhanden ist, mitsenden um 403 (Rate Limit) zu vermeiden
-    if (!empty($token)) {
-        $headers[] = "Authorization: token " . $token;
-    }
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_HTTPHEADER => $headers
-    ]);
+        if ($httpCode !== 200) return ['success' => false, 'message' => "GitHub Fehler $httpCode"];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+        $data = json_decode($response, true);
+        $release = ($beta && is_array($data)) ? $data[0] : $data;
 
-    // 4. Fehlerbehandlung (z.B. bei Rate Limit trotz Token oder DNS Fehlern)
-    if ($httpCode !== 200 || !$response) {
+        if (!isset($release['tag_name'])) return ['success' => false, 'message' => 'Kein Release gefunden'];
+
+        $remoteVersion = str_replace('v', '', $release['tag_name']);
+        
         return [
-            'success' => false, 
-            'message' => "GitHub API Fehler (Status: $httpCode)",
+            'success' => true,
+            'update_available' => version_compare($remoteVersion, $currentVersion, '>'),
             'current' => $currentVersion,
-            'remote' => $currentVersion,
-            'update_available' => false
+            'remote' => $remoteVersion,
+            'is_beta' => ($release['prerelease'] ?? false),
+            'download_url' => $release['zipball_url'] ?? '',
+            'changelog' => $release['body'] ?? ''
         ];
     }
 
-    $data = json_decode($response, true);
-    $release = null;
-
-    // 5. Daten-Extraktion basierend auf dem Modus (Beta vs Stable)
-    if ($beta && is_array($data) && !empty($data)) {
-        // Im Beta-Modus (/releases) nehmen wir das aktuellste Release aus dem Array
-        $release = $data[0]; 
-    } elseif (!$beta && isset($data['tag_name'])) {
-        // Im Stable-Modus (/latest) ist die Antwort direkt das Objekt
-        $release = $data;
-    }
-
-    if (!$release) {
-        return ['success' => false, 'message' => 'Kein passendes Release gefunden.'];
-    }
-
-    // Version säubern (v1.4.3-beta -> 1.4.3-beta)
-    $remoteVersion = str_replace('v', '', $release['tag_name']);
-
-    // 6. Versionsvergleich
-    // version_compare erkennt "beta", "rc", "alpha" automatisch korrekt
-    $updateAvailable = version_compare($remoteVersion, $currentVersion, '>');
-
-    return [
-        'success' => true,
-        'update_available' => $updateAvailable,
-        'current' => $currentVersion,
-        'remote' => $remoteVersion,
-        'is_beta' => ($release['prerelease'] ?? false),
-        'tag_name' => $release['tag_name'],
-        'download_url' => $release['zipball_url'] ?? '',
-        'changelog' => $release['body'] ?? 'Keine Beschreibung verfügbar.'
-    ];
-}
+    /**
+     * Lädt das ZIP herunter und installiert das Update
+     */
     public function installUpdate($url) {
-    $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
-    $extractPath = dirname(__DIR__) . '/';
+        $tempFile = dirname(__DIR__) . '/data/update_temp.zip';
+        $extractPath = dirname(__DIR__) . '/';
+        $token = $this->config->get('github_token');
 
-    // cURL nutzen statt file_get_contents für bessere Fehlerbehandlung und Auth
-    $ch = curl_init($url);
-    $fp = fopen($tempFile, 'w+');
+        $ch = curl_init($url);
+        $fp = fopen($tempFile, 'w+');
 
-    curl_setopt_array($ch, [
-        CURLOPT_FOLLOWLOCATION => true, // WICHTIG: Folgt dem Redirect zu codeload.github.com
-        CURLOPT_RETURNTRANSFER => false,
-        CURLOPT_BINARYTRANSFER => true,
-        CURLOPT_HEADER => false,
-        CURLOPT_FILE => $fp,
-        CURLOPT_TIMEOUT => 60,
-        CURLOPT_USERAGENT => 'VantixDash-Updater',
-        CURLOPT_SSL_VERIFYPEER => true
-    ]);
+        $headers = ['User-Agent: VantixDash-Updater'];
+        if (!empty($token)) $headers[] = "Authorization: token $token";
 
-    // Falls du einen Token hast, sende ihn auch hier mit
-    $config = file_exists(dirname(__DIR__) . '/data/config.php') ? include dirname(__DIR__) . '/data/config.php' : [];
-    if (!empty($config['github_token'])) {
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: token " . $config['github_token']]);
-    }
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FILE => $fp,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_HTTPHEADER => $headers
+        ]);
 
-    $success = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    fclose($fp);
+        $success = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fp);
 
-    if (!$success || $httpCode !== 200) {
-        if (file_exists($tempFile)) unlink($tempFile);
+        if (!$success || $httpCode !== 200) {
+            if (file_exists($tempFile)) unlink($tempFile);
+            return false;
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($tempFile) === TRUE) {
+            $zip->extractTo($extractPath);
+            $zip->close();
+            unlink($tempFile);
+            return true;
+        }
+        
         return false;
-    }
-
-    // Entpacken
-    $zip = new ZipArchive;
-    if ($zip->open($tempFile) === TRUE) {
-        $zip->extractTo($extractPath);
-        $zip->close();
-        unlink($tempFile);
-        return true;
-    }
-    
-    return false;
-}
-
-    private function save($sites) {
-        return file_put_contents($this->file, json_encode(array_values($sites), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 }
