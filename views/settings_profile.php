@@ -32,9 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $config['password_hash'] = password_hash($new_pass, PASSWORD_DEFAULT);
     }
 
-    if (file_put_contents($configPath, "<?php\nreturn " . var_export($config, true) . ";")) {
-        $message = '<div class="alert alert-success shadow-sm"><i class="bi bi-check-circle me-2"></i>Profil erfolgreich aktualisiert!</div>';
-    }
+    $jsonConfig = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if (file_put_contents($configPath, $jsonConfig)) {
+    $message = '<div class="alert alert-success shadow-sm">Profil erfolgreich aktualisiert!</div>';
+}
 }
 
 // 2. VERARBEITUNG: 2FA STATUS (Aktivieren/Deaktivieren)
@@ -55,7 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_2fa'])) {
         $config['2fa_secret'] = null;
         $message = '<div class="alert alert-warning shadow-sm"><i class="bi bi-shield-slash me-2"></i>2FA wurde deaktiviert.</div>';
     }
-    file_put_contents($configPath, "<?php\nreturn " . var_export($config, true) . ";");
+    $jsonConfig = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if (file_put_contents($configPath, $jsonConfig)) {
+    $message = '<div class="alert alert-success shadow-sm">Profil erfolgreich aktualisiert!</div>';
 }
 
 // Vorbereitung für das 2FA-Setup
