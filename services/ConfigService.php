@@ -6,18 +6,18 @@ class ConfigService {
     private static $instance = null;
 
     public function __construct() {
-        $basePath = dirname(__DIR__) . '/data/';
-        
-        // Haupt-Konfiguration
-        if (file_exists($basePath . 'config.php')) {
-            $this->settings = include $basePath . 'config.php';
-        }
-
-        // Versions-Datei
-        if (file_exists(dirname(__DIR__) . '/version.php')) {
-            $this->versionData = include dirname(__DIR__) . '/version.php';
-        }
+    $basePath = dirname(__DIR__) . '/data/';
+    $configFile = $basePath . 'config.json'; // .json statt .php
+    
+    if (file_exists($configFile)) {
+        $content = file_get_contents($configFile);
+        $this->settings = json_decode($content, true) ?? [];
     }
+
+    if (file_exists(dirname(__DIR__) . '/version.php')) {
+        $this->versionData = include dirname(__DIR__) . '/version.php';
+    }
+}
 
     // Zugriff auf Einstellungen (z.B. get('github_token'))
     public function get($key, $default = null) {
