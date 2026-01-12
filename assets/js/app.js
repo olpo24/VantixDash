@@ -242,35 +242,4 @@ window.onclick = (event) => {
         console.error("Login Error:", e);
     }
 };
-	document.addEventListener('DOMContentLoaded', () => {
-    const toggleBtn = document.getElementById('view-toggle');
-    const grid = document.querySelector('.dashboard-grid');
-    const icon = document.getElementById('toggle-icon');
-
-    // 1. Gespeicherte Ansicht laden
-    const currentView = localStorage.getItem('dashboard-view') || 'grid';
-    
-    if (currentView === 'list' && grid) {
-        grid.classList.add('view-list');
-        icon.classList.replace('ph-list', 'ph-squares-four');
-    }
-
-    // 2. Click-Event
-    if (toggleBtn && grid) {
-        toggleBtn.addEventListener('click', () => {
-            grid.classList.toggle('view-list');
-            
-            const isList = grid.classList.contains('view-list');
-            
-            // Icon wechseln
-            if (isList) {
-                icon.classList.replace('ph-list', 'ph-squares-four');
-                localStorage.setItem('dashboard-view', 'list');
-            } else {
-                icon.classList.replace('ph-squares-four', 'ph-list');
-                localStorage.setItem('dashboard-view', 'grid');
-            }
-        });
-    }
-});
 });
