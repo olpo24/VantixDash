@@ -36,11 +36,16 @@ $currentVersion = is_array($versionData) ? $versionData['version'] : $versionDat
                     <span id="new-version-tag" style="margin-left: 5px; opacity: 0.8;"></span>
                 </div>
             </div>
-            <div id="update-container" class="alert alert-info d-none">
-    <p>Eine neue Version (<span id="new-version-number"></span>) ist verfügbar!</p>
-    <button id="start-update-btn" class="btn btn-primary" data-url="">
-        <i class="bi bi-cloud-download me-2"></i> Jetzt Update installieren
-    </button>
+            <div id="update-container" style="display: none;" class="update-banner">
+    <div class="update-content">
+        <div class="update-text">
+            <strong>System-Update verfügbar</strong>
+            <span>Version <span id="new-version-number"></span> ist bereit.</span>
+        </div>
+        <button id="start-update-btn" class="main-button">
+            Update jetzt installieren
+        </button>
+    </div>
 </div>
         </div>
 
