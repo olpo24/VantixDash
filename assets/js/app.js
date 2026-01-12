@@ -109,27 +109,37 @@ document.addEventListener('DOMContentLoaded', () => {
      * Einzelne Seite aktualisieren (API Check)
      */
     window.refreshSite = async (id) => {
-        const card = document.querySelector(`.site-card[data-id="${id}"]`);
-        const btn = card.querySelector('.refresh-single i');
-        
-        btn.classList.add('ph-spin'); // Animation starten
+    // 1. Die Card finden
+    const card = document.querySelector(`.site-card[data-id="${id}"]`);
+    if (!card) {
+        console.error(`Card mit ID ${id} nicht gefunden.`);
+        return;
+    }
 
-        try {
-            const response = await fetch(`api.php?action=refresh_site&id=${id}`);
-            const result = await response.json();
-            
-            if (result.success) {
-                // Seite neu laden um Änderungen im Dashboard zu sehen
-                window.location.reload();
-            } else {
-                alert("Fehler beim Prüfen: " + result.message);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            btn.classList.remove('ph-spin');
+    // 2. Das Icon im Button finden (sicherer Selektor)
+    const icon = card.querySelector('.refresh-single i');
+    
+    // Animation starten, falls das Icon existiert
+    if (icon) icon.classList.add('ph-spin');
+
+    try {
+        const response = await fetch(`api.php?action=refresh_site&id=${id}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            // Seite neu laden, um die neuen Daten aus der JSON anzuzeigen
+            window.location.reload();
+        } else {
+            alert("Fehler beim Prüfen: " + result.message);
         }
-    };
+    } catch (e) {
+        console.error("API Fehler:", e);
+        alert("Verbindung zur API fehlgeschlagen.");
+    } finally {
+        // Animation stoppen
+        if (icon) icon.classList.remove('ph-spin');
+    }
+};
 
     /**
      * Alle Seiten nacheinander prüfen
