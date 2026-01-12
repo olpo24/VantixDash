@@ -17,7 +17,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'logout') {
 }
 
 // 3. Daten laden
-$config = include __DIR__ . '/data/config.php';
+require_once __DIR__ . '/services/ConfigService.php';
+$configService = new ConfigService();
+$config = $configService->getAll(); // Damit die Variable $config für die Views erhalten bleibt
 $sitesFile = __DIR__ . '/data/sites.json';
 // Hier laden wir die Daten, die du unten im JS brauchst:
 $siteData = file_exists($sitesFile) ? json_decode(file_get_contents($sitesFile), true) : [];
