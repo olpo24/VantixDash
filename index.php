@@ -56,11 +56,8 @@ if (!file_exists($viewPath)) {
     <a href="index.php?view=dashboard" class="<?php echo $view === 'dashboard' ? 'active' : ''; ?>">Dashboard</a>
     <a href="index.php?view=manage_sites" class="<?php echo $view === 'manage_sites' ? 'active' : ''; ?>">Seiten</a>
     <a href="index.php?view=settings_general" class="<?php echo $view === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
-    <div class="nav-controls">
-    <button id="view-toggle" class="ghost-button" title="Ansicht umschalten">
-        <i class="ph ph-list" id="toggle-icon"></i>
-    </button>
-    <a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
+	<a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
+       
 </div>
 </nav>
 
