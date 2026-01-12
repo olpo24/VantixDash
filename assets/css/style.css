@@ -598,3 +598,23 @@ tr:hover td {
 /* Loader */
 .loader-spinner { display: flex; justify-content: center; padding: 2rem; font-size: 2rem; animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.update-section { margin-top: 1.5rem; }
+.update-section h4 { 
+    display: flex; align-items: center; gap: 8px; 
+    margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;
+}
+.update-item { 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 8px 0; border-bottom: 1px dashed #eee; 
+}
+.update-info { display: flex; flex-direction: column; }
+.update-info strong { font-size: 0.95rem; }
+.update-info span { font-size: 0.8rem; color: var(--text-muted); }
+
+.mini-btn { 
+    background: var(--primary-color); color: white; border: none; 
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+}
+.ph-spin { animation: spin 1s linear infinite; display: inline-block; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
