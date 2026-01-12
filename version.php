@@ -1,8 +1,6 @@
 <?php
-/**
- * version.php
- * Hält die aktuelle Versionsnummer des Dashboards.
- */
 return [
-    'version' => '1.0.9', // Diese Nummer erhöhst du bei jedem Release
+    'version' => '1.0.0',
+    'release_date' => '2026-01-09',
+    'branch' => 'main'
 ];
