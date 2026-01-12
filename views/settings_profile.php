@@ -2,6 +2,7 @@
 /**
  * views/settings_profile.php
  * Kombinierte Ansicht für Profil-Daten und 2FA-Sicherheit
+ * Sicherheit: Implementiert CSRF-Schutz für alle POST-Aktionen
  */
 
 require_once __DIR__ . '/../libs/GoogleAuthenticator.php';
@@ -9,6 +10,14 @@ $ga = new PHPGangsta_GoogleAuthenticator();
 $message = '';
 $error = '';
 $configPath = __DIR__ . '/../data/config.php';
+
+// Zentraler CSRF-Check für alle POST-Anfragen in dieser View
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $token = $_POST['csrf_token'] ?? '';
+    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        die('Sicherheitsfehler: CSRF-Validierung fehlgeschlagen. Bitte laden Sie die Seite neu.');
+    }
+}
 
 // 1. VERARBEITUNG: PROFIL-DATEN (Name, Email, Passwort)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
@@ -68,6 +77,8 @@ $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash (' . $config['username'] . ')',
             </div>
             <div class="card-body p-4">
                 <form method="POST" action="index.php?view=settings_profile">
+                    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                    
                     <div class="row g-4">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted text-uppercase">Benutzername</label>
@@ -108,6 +119,8 @@ $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash (' . $config['username'] . ')',
 
                     <div id="2fa-setup-area" style="display: none;" class="bg-light p-4 rounded border">
                         <form method="POST" action="index.php?view=settings_profile">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            
                             <input type="hidden" name="enable_2fa_action" value="1">
                             <input type="hidden" name="temp_secret" value="<?php echo $tempSecret; ?>">
                             
@@ -136,6 +149,8 @@ $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash (' . $config['username'] . ')',
                             <span class="fw-bold">2FA ist aktiv geschaltet.</span>
                         </div>
                         <form method="POST" action="index.php?view=settings_profile" onsubmit="return confirm('Möchtest du 2FA wirklich deaktivieren?');">
+                            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                            
                             <input type="hidden" name="enable_2fa_action" value="0">
                             <button type="submit" name="update_2fa" class="btn btn-outline-danger btn-sm fw-bold">
                                 Deaktivieren
