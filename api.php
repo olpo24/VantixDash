@@ -1,9 +1,7 @@
 <?php
 /**
- * VantixDash - Zentrale API Schnittstelle (Controller)
- * Architektur: Nutzt ConfigService & SiteService
+ * api.php - Zentraler AJAX-Endpunkt für VantixDash
  */
-
 session_start();
 header('Content-Type: application/json');
 
@@ -11,47 +9,71 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
 
+// 2. INITIALISIERUNG
 $configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
 
-// 2. AUTHENTIFIZIERUNGSPRÜFUNG
+// 3. SICHERHEITSPRÜFUNGEN
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert']);
     exit;
 }
 
-// 3. CSRF-SCHUTZ (Nur für POST-Anfragen)
+$action = $_GET['action'] ?? '';
+
+// CSRF-Check für schreibende Aktionen (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
-        http_response_code(403);
+    $headers = getallheaders();
+    $token = $headers['X-CSRF-TOKEN'] ?? $_POST['csrf_token'] ?? '';
+    
+    if (empty($token) || $token !== $_SESSION['csrf_token']) {
         echo json_encode(['success' => false, 'message' => 'CSRF-Token ungültig']);
         exit;
     }
 }
 
-$action = $_GET['action'] ?? '';
-
+// 4. ROUTING DER AKTIONEN
 switch ($action) {
-    
-    // --- SEITEN VERWALTUNG ---
 
-    case 'get_sites':
-        echo json_encode($siteService->getAll());
+    case 'check_update':
+        $beta = isset($_GET['beta']) && $_GET['beta'] === 'true';
+        $result = $siteService->checkAppUpdate($beta);
+        echo json_encode($result);
         break;
 
-    case 'add_site':
-        $name = filter_var($_POST['name'] ?? '', FILTER_SANITIZE_SPECIAL_CHARS);
-        $url  = filter_var($_POST['url'] ?? '', FILTER_VALIDATE_URL);
-        
-        if (!$url) {
-            echo json_encode(['success' => false, 'message' => 'Ungültige URL']);
+    case 'install_update':
+        $url = $_POST['url'] ?? '';
+        if (empty($url)) {
+            echo json_encode(['success' => false, 'message' => 'Keine URL angegeben']);
             break;
         }
+        $success = $siteService->installUpdate($url);
+        echo json_encode(['success' => $success, 'message' => $success ? 'Update installiert' : 'Installation fehlgeschlagen']);
+        break;
 
-        $newSite = $siteService->addSite($name, $url);
-        echo json_encode(['success' => (bool)$newSite, 'site' => $newSite]);
+    case 'refresh_site':
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) {
+        echo json_encode(['success' => false, 'message' => 'ID fehlt']);
+        break;
+    }
+    $updatedSite = $siteService->refreshSiteData($id);
+    if ($updatedSite) {
+        echo json_encode(['success' => true, 'data' => $updatedSite]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Verbindung zur WordPress-Seite fehlgeschlagen. Prüfe API-Key und Plugin-Status.']);
+    }
+    break;
+
+    case 'add_site':
+        $name = $_POST['name'] ?? '';
+        $url = $_POST['url'] ?? '';
+        if ($name && $url) {
+            $newSite = $siteService->addSite($name, $url);
+            echo json_encode(['success' => (bool)$newSite, 'site' => $newSite]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Name oder URL fehlt']);
+        }
         break;
 
     case 'delete_site':
@@ -60,46 +82,7 @@ switch ($action) {
         echo json_encode(['success' => $success]);
         break;
 
-    case 'refresh_site':
-        $id = $_POST['id'] ?? '';
-        $updatedSite = $siteService->refreshSiteData($id);
-        echo json_encode(['success' => (bool)$updatedSite, 'site' => $updatedSite]);
-        break;
-
-
-    // --- SYSTEM UPDATES ---
-
-    case 'check_update':
-        // Beta-Kanal Prüfung (true/false)
-        $beta = (isset($_GET['beta']) && $_GET['beta'] === 'true');
-        $updateInfo = $siteService->checkAppUpdate($beta);
-        echo json_encode($updateInfo);
-        break;
-
-    case 'install_update':
-        $downloadUrl = $_POST['url'] ?? '';
-
-        // SICHERHEIT: Whitelist für GitHub Pfade (Regex-Fix)
-        $pattern = '/^https:\/\/(www\.)?(github\.com|codeload\.github\.com|api\.github\.com)\/repos\/olpo24\/VantixDash\/(zipball|archive)\//i';
-        $pattern2 = '/^https:\/\/github\.com\/olpo24\/VantixDash\/(archive|releases)\//i';
-
-        if (!preg_match($pattern, $downloadUrl) && !preg_match($pattern2, $downloadUrl)) {
-            echo json_encode([
-                'success' => false, 
-                'message' => 'Sicherheitsfehler: Ungültige Update-Quelle! URL muss von olpo24/VantixDash stammen.'
-            ]);
-            exit;
-        }
-
-        $success = $siteService->installUpdate($downloadUrl);
-        echo json_encode(['success' => $success]);
-        break;
-
-
-    // --- DEFAULT ---
-
     default:
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion: ' . htmlspecialchars($action)]);
+        echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion']);
         break;
 }
