@@ -52,18 +52,65 @@ switch ($action) {
         break;
 
     case 'refresh_site':
-    $id = $_GET['id'] ?? '';
-    if (empty($id)) {
-        echo json_encode(['success' => false, 'message' => 'ID fehlt']);
+        $id = $_GET['id'] ?? '';
+        if (empty($id)) {
+            echo json_encode(['success' => false, 'message' => 'ID fehlt']);
+            break;
+        }
+        $updatedSite = $siteService->refreshSiteData($id);
+        if ($updatedSite) {
+            echo json_encode(['success' => true, 'data' => $updatedSite]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Verbindung zur WordPress-Seite fehlgeschlagen. Prüfe API-Key und Plugin-Status.']);
+        }
         break;
-    }
-    $updatedSite = $siteService->refreshSiteData($id);
-    if ($updatedSite) {
-        echo json_encode(['success' => true, 'data' => $updatedSite]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Verbindung zur WordPress-Seite fehlgeschlagen. Prüfe API-Key und Plugin-Status.']);
-    }
-    break;
+
+    case 'login_site':
+        $id = $_GET['id'] ?? '';
+        if (empty($id)) {
+            echo json_encode(['success' => false, 'message' => 'ID fehlt']);
+            break;
+        }
+
+        // Wir holen alle Seiten, um die URL und den API-Key der Zielseite zu finden
+        $sites = $siteService->getAll();
+        $targetSite = null;
+        foreach ($sites as $site) {
+            if ($site['id'] === $id) {
+                $targetSite = $site;
+                break;
+            }
+        }
+
+        if ($targetSite) {
+            $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
+            
+            $options = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n" .
+                                "User-Agent: VantixDash-Monitor/1.0\r\n",
+                    'timeout' => 10
+                ]
+            ];
+            
+            $context = stream_context_create($options);
+            $response = @file_get_contents($apiUrl, false, $context);
+            
+            if ($response) {
+                $data = json_decode($response, true);
+                if (isset($data['login_url'])) {
+                    echo json_encode(['success' => true, 'login_url' => $data['login_url']]);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Keine Login-URL vom Child-Plugin erhalten.']);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Verbindung zum Child-Plugin fehlgeschlagen.']);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden.']);
+        }
+        break;
 
     case 'add_site':
         $name = $_POST['name'] ?? '';
