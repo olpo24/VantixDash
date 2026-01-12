@@ -1,65 +1,63 @@
 <?php
-// Sicherstellen, dass die Daten geladen sind
-$sitesFile = 'data/sites.json';
-$sites = file_exists($sitesFile) ? json_decode(file_get_contents($sitesFile), true) : [];
+/**
+ * views/manage_sites.php
+ * Native Version ohne TableManager-Referenzen.
+ */
+
+if (!isset($siteService)) {
+    header('Location: ../index.php');
+    exit;
+}
+
+$sites = $siteService->getAll();
+$message = '';
+
+// Einfaches Löschen via POST (als Fallback für AJAX)
+if (isset($_POST['delete_id'])) {
+    if ($siteService->deleteSite($_POST['delete_id'])) {
+        $message = '<div class="alert success">Seite erfolgreich entfernt.</div>';
+        $sites = $siteService->getAll(); // Liste aktualisieren
+    }
+}
 ?>
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-    <div>
-        <h1 style="font-size: 1.5rem; font-weight: 800;">Webseiten verwalten</h1>
-        <p class="text-muted small">Hier kannst du deine verbundenen WordPress-Instanzen verwalten und API-Keys generieren.</p>
+<div class="manage-container">
+    <div class="header-action">
+        <h2>Seiten verwalten</h2>
+        <a href="index.php?view=add_site" class="main-button"> + Neue Seite</a>
     </div>
-    <button class="btn btn-primary" onclick="document.getElementById('addSiteModal').showModal()">
-        <i class="ph ph-plus-circle"></i> Seite hinzufügen
-    </button>
-</div>
 
-<div class="card" style="padding: 0; overflow: hidden;">
-    <div class="table-container">
-        <table>
+    <?php echo $message; ?>
+
+    <div class="table-responsive">
+        <table class="native-table" id="management-table">
             <thead>
                 <tr>
-                    <th>Name der Seite</th>
-                    <th>URL / Endpunkt</th>
-                    <th>API Key (verschleiert)</th>
-                    <th style="text-align: right;">Aktionen</th>
+                    <th>Name</th>
+                    <th>URL</th>
+                    <th>Status</th>
+                    <th>WP-Version</th>
+                    <th>Aktionen</th>
                 </tr>
             </thead>
-            <tbody id="manage-sites-tbody">
+            <tbody id="sites-list-body">
                 <?php if (empty($sites)): ?>
-                <tr>
-                    <td colspan="4" style="text-align: center; padding: 4rem; color: var(--text-muted);">
-                        <i class="ph ph-folder-open" style="font-size: 3rem; display: block; margin-bottom: 1rem; opacity: 0.3;"></i>
-                        Keine Webseiten gefunden. Klicke auf "Seite hinzufügen", um zu starten.
-                    </td>
-                </tr>
+                    <tr><td colspan="5" style="text-align:center;">Noch keine Seiten hinzugefügt.</td></tr>
                 <?php else: ?>
                     <?php foreach ($sites as $site): ?>
-                    <tr>
-                        <td>
-                            <div style="font-weight: 700; color: var(--text-main);"><?php echo htmlspecialchars($site['name']); ?></div>
-                        </td>
-                        <td>
-                            <code style="font-size: 0.85rem; color: var(--primary);"><?php echo htmlspecialchars($site['url']); ?></code>
-                        </td>
-                        <td>
-                            <span style="font-family: monospace; color: var(--text-muted); font-size: 0.9rem;">
-                                ••••••••••••<?php echo substr($site['api_key'] ?? '', -4); ?>
-                            </span>
-                        </td>
-                        <td style="text-align: right;">
-                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                                <button class="btn-icon" title="Bearbeiten" 
-                                        onclick='openEditModal(<?php echo json_encode($site); ?>)'>
-                                    <i class="ph ph-pencil-simple"></i>
-                                </button>
-                                <button class="btn-icon" title="Löschen" style="--primary: var(--danger);" 
-                                        onclick="App.deleteSite('<?php echo $site['id']; ?>')">
-                                    <i class="ph ph-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                        <tr data-id="<?php echo $site['id']; ?>">
+                            <td><strong><?php echo htmlspecialchars($site['name']); ?></strong></td>
+                            <td><small><?php echo htmlspecialchars($site['url']); ?></small></td>
+                            <td><span class="status-badge <?php echo $site['status']; ?>"><?php echo ucfirst($site['status']); ?></span></td>
+                            <td><?php echo htmlspecialchars($site['wp_version']); ?></td>
+                            <td>
+                                <button class="btn-refresh" onclick="refreshSite('<?php echo $site['id']; ?>')">🔄</button>
+                                <form method="POST" style="display:inline;" onsubmit="return confirm('Wirklich löschen?');">
+                                    <input type="hidden" name="delete_id" value="<?php echo $site['id']; ?>">
+                                    <button type="submit" class="btn-delete">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
@@ -67,87 +65,16 @@ $sites = file_exists($sitesFile) ? json_decode(file_get_contents($sitesFile), tr
     </div>
 </div>
 
-<dialog id="addSiteModal" class="card shadow-lg" style="width: 450px; border: none; padding: 2rem; margin: auto;">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 1.5rem;">
-        <h3 style="font-weight: 800;">Neue Webseite</h3>
-        <button onclick="this.closest('dialog').close()" style="background:none; border:none; cursor:pointer;"><i class="ph ph-x" style="font-size: 1.5rem;"></i></button>
-    </div>
-    <form id="addSiteForm">
-        <div class="form-group">
-            <label>Anzeigename</label>
-            <input type="text" name="name" placeholder="z.B. Kundenprojekt XY" required>
-        </div>
-        <div class="form-group">
-            <label>URL</label>
-            <input type="url" name="url" placeholder="https://deine-seite.de" required>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem;">
-            <button type="button" class="btn" style="background: var(--border);" onclick="this.closest('dialog').close()">Abbrechen</button>
-            <button type="submit" class="btn btn-primary">Key generieren</button>
-        </div>
-    </form>
-</dialog>
-
-<dialog id="editSiteModal" class="card shadow-lg" style="width: 450px; border: none; padding: 2rem; margin: auto;">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 1.5rem;">
-        <h3 style="font-weight: 800;">Webseite bearbeiten</h3>
-        <button onclick="this.closest('dialog').close()" style="background:none; border:none; cursor:pointer;"><i class="ph ph-x" style="font-size: 1.5rem;"></i></button>
-    </div>
-    <form id="editSiteForm">
-        <input type="hidden" name="id" id="edit-id">
-        <div class="form-group">
-            <label>Anzeigename</label>
-            <input type="text" name="name" id="edit-name" required>
-        </div>
-        <div class="form-group">
-            <label>URL</label>
-            <input type="url" name="url" id="edit-url" required>
-        </div>
-        
-        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-body); border-radius: 8px; border: 1px dashed var(--border);">
-            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-weight: 700; color: var(--text-main);">
-                <input type="checkbox" name="renew_key" value="1" style="width: auto;"> 
-                Neuen API-Key generieren?
-            </label>
-            <p class="small text-muted" style="margin-top: 0.5rem; line-height: 1.4;">
-                Der aktuelle Key im WordPress-Plugin verliert bei Aktivierung sofort seine Gültigkeit.
-            </p>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem;">
-            <button type="button" class="btn" style="background: var(--border);" onclick="this.closest('dialog').close()">Abbrechen</button>
-            <button type="submit" class="btn btn-primary">Speichern</button>
-        </div>
-    </form>
-</dialog>
-
-<dialog id="keySuccessModal" class="card shadow-lg" style="width: 450px; border: none; padding: 2.5rem; margin: auto;">
-    <div style="text-align: center;">
-        <div style="width: 60px; height: 60px; background: #dcfce7; color: #166534; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem;">
-            <i class="ph ph-check-bold"></i>
-        </div>
-        <h3 style="font-weight: 800; margin-bottom: 0.5rem;">API Key generiert</h3>
-        <p class="text-muted small" style="margin-bottom: 1.5rem;">Kopiere diesen Schlüssel und füge ihn im VantixDash Child-Plugin unter "API Key" ein.</p>
-        
-        <div style="background: #f1f5f9; padding: 1.25rem; border-radius: var(--radius); border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700; word-break: break-all; color: var(--primary); margin-bottom: 2rem;" id="generatedKeyDisplay">
-            </div>
-        
-        <button class="btn btn-primary" style="width: 100%;" onclick="location.reload()">
-            Ich habe den Key kopiert
-        </button>
-    </div>
-</dialog>
-
-<script>
-/**
- * Bereitet das Edit-Modal mit den Daten der Zeile vor
- */
-function openEditModal(site) {
-    document.getElementById('edit-id').value = site.id;
-    document.getElementById('edit-name').value = site.name;
-    document.getElementById('edit-url').value = site.url;
-    // Checkbox immer zurücksetzen beim Öffnen
-    document.querySelector('#editSiteForm input[name="renew_key"]').checked = false;
-    document.getElementById('editSiteModal').showModal();
-}
-</script>
+<style>
+.header-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.native-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.native-table th, .native-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+.native-table th { background: #f8f9fa; font-weight: bold; font-size: 0.85em; text-transform: uppercase; color: #666; }
+.status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold; }
+.status-badge.online { background: #d4edda; color: #155724; }
+.status-badge.offline { background: #f8d7da; color: #721c24; }
+.status-badge.pending { background: #fff3cd; color: #856404; }
+.btn-refresh, .btn-delete { background: none; border: 1px solid #ddd; padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+.btn-refresh:hover { background: #e3f2fd; border-color: #2196f3; }
+.btn-delete:hover { background: #f8d7da; border-color: #dc3545; }
+</style>
