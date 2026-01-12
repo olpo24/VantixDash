@@ -89,14 +89,3 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-family: monospace; }
 </style>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const isBeta = localStorage.getItem('vantix_beta') === 'true';
-    const toggle = document.getElementById('beta-toggle');
-    if (toggle) toggle.checked = isBeta;
-    
-    // Automatisch nach Updates suchen, wenn die Einstellungsseite geladen wird
-    App.checkAppUpdates();
-});
-</script>
