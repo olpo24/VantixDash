@@ -79,7 +79,7 @@ class SiteService {
                 'http' => [
                     'method' => 'GET',
                     'header' => [
-                        "X-API-KEY: " . $site['api_key'],
+                        "X-Vantix-Secret: " . $site['api_key'],
                         "User-Agent: VantixDash-Monitor/1.0"
                     ],
                     'timeout' => 15,
