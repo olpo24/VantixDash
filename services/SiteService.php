@@ -159,188 +159,125 @@ class SiteService {
     }
 
     /**
- * Lädt das Update von GitHub, entpackt es, verschiebt die Dateien 
- * und aktualisiert die Versionsdatei.
- */
-public function installUpdate($url) {
-    $basePath = dirname(__DIR__) . '/';
-    $tempFile = $basePath . 'data/update_temp.zip';
-    $token = $this->config->get('github_token');
+     * Lädt das Update von GitHub, entpackt es, verschiebt die Dateien 
+     * und aktualisiert die Versionsdatei.
+     */
+    public function installUpdate($url) {
+        $basePath = dirname(__DIR__) . '/';
+        $tempFile = $basePath . 'data/update_temp.zip';
+        $token = $this->config->get('github_token');
 
-    // 1. DOWNLOAD (mit cURL für Redirects und Auth)
-    $ch = curl_init($url);
-    $fp = fopen($tempFile, 'w+');
-    $headers = [
-        'User-Agent: VantixDash-Updater',
-        'Accept: application/vnd.github.v3+json'
-    ];
-    if (!empty($token)) {
-        $headers[] = "Authorization: token " . $token;
-    }
+        // 1. DOWNLOAD
+        $ch = curl_init($url);
+        $fp = fopen($tempFile, 'w+');
+        $headers = [
+            'User-Agent: VantixDash-Updater',
+            'Accept: application/vnd.github.v3+json'
+        ];
+        if (!empty($token)) $headers[] = "Authorization: token $token";
 
-    curl_setopt_array($ch, [
-        CURLOPT_FOLLOWLOCATION => true, // Wichtig für GitHub Redirects
-        CURLOPT_FILE => $fp,
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_SSL_VERIFYPEER => true
-    ]);
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FILE => $fp,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_SSL_VERIFYPEER => true
+        ]);
 
-    $success = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    fclose($fp);
+        $success = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fp);
 
-    if (!$success || $httpCode !== 200) {
-        if (file_exists($tempFile)) unlink($tempFile);
+        if (!$success || $httpCode !== 200) {
+            if (file_exists($tempFile)) unlink($tempFile);
+            return false;
+        }
+
+        // 2. ENTPACKEN
+        $zip = new ZipArchive;
+        if ($zip->open($tempFile) === TRUE) {
+            $zip->extractTo($basePath);
+            $zip->close();
+            unlink($tempFile);
+
+            // 3. GITHUB-ORDNER IDENTIFIZIEREN
+            $githubDir = null;
+            $allFiles = scandir($basePath);
+            foreach ($allFiles as $f) {
+                if (is_dir($basePath . $f) && strpos($f, 'olpo24-VantixDash-') === 0) {
+                    $githubDir = $basePath . $f;
+                    break;
+                }
+            }
+
+            if ($githubDir) {
+                // 4. DATEIEN VERSCHIEBEN
+                $this->moveRecursive($githubDir, $basePath);
+                
+                // 5. CLEANUP
+                $this->deleteDir($githubDir);
+                
+                // 6. VERSIONSDATEI SCHREIBEN
+                preg_match('/zipball\/(v?[\d\.]+[^)]*)/', $url, $matches);
+                $newVersion = isset($matches[1]) ? str_replace('v', '', $matches[1]) : 'unbekannt';
+                $this->updateVersionFile($newVersion);
+
+                if (function_exists('opcache_reset')) @opcache_reset();
+                
+                return true;
+            }
+        }
         return false;
     }
 
-    // 2. ENTPACKEN
-    $zip = new ZipArchive;
-    if ($zip->open($tempFile) === TRUE) {
-        $zip->extractTo($basePath);
-        $zip->close();
-        unlink($tempFile);
-
-        // 3. GITHUB-ORDNER IDENTIFIZIEREN
-        // GitHub packt alles in einen Ordner wie 'olpo24-VantixDash-hash'
-        $githubDir = null;
-        $allFiles = scandir($basePath);
-        foreach ($allFiles as $f) {
-            if (is_dir($basePath . $f) && strpos($f, 'olpo24-VantixDash-') === 0) {
-                $githubDir = $basePath . $f;
-                break;
-            }
-        }
-
-        if ($githubDir) {
-            // 4. DATEIEN VERSCHIEBEN (REKURSIV & SICHER)
-            $this->moveRecursive($githubDir, $basePath);
-            
-            // 5. CLEANUP (GitHub-Ordner löschen)
-            $this->deleteDir($githubDir);
-            
-            // 6. VERSIONSDATEI SCHREIBEN
-            // Wir extrahieren die Version aus der URL (z.B. .../v1.4.6-beta)
-            preg_match('/zipball\/(v?[\d\.]+[^)]*)/', $url, $matches);
-            $newVersion = isset($matches[1]) ? str_replace('v', '', $matches[1]) : 'unbekannt';
-            $this->updateVersionFile($newVersion);
-
-            // 7. CACHE LEEREN
-            if (function_exists('opcache_reset')) {
-                @opcache_reset();
-            }
-            
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Verschiebt Dateien rekursiv und schützt Nutzerkonfigurationen
- */
-private function moveRecursive($src, $dest) {
-    $files = array_diff(scandir($src), ['.', '..']);
-    foreach ($files as $file) {
-        $currentSrc = $src . '/' . $file;
-        $currentDest = $dest . '/' . $file;
-        
-        // KRITISCH: Diese Dateien dürfen niemals vom Update überschrieben werden!
-        $protected = ['config.json', 'sites.json', '.htaccess', 'config.php', 'sites.php'];
-        if (in_array($file, $protected)) {
-            continue; 
-        }
-
-        if (is_dir($currentSrc)) {
-            if (!is_dir($currentDest)) {
-                mkdir($currentDest, 0755, true);
-            }
-            $this->moveRecursive($currentSrc, $currentDest);
-        } else {
-            // Systemdateien werden überschrieben
-            rename($currentSrc, $currentDest);
-        }
-    }
-}
-
-/**
- * Löscht einen Ordner und dessen Inhalt rekursiv
- */
-private function deleteDir($dirPath) {
-    if (!is_dir($dirPath)) return;
-    $files = array_diff(scandir($dirPath), ['.', '..']);
-    foreach ($files as $file) {
-        (is_dir("$dirPath/$file")) ? $this->deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
-    }
-    return rmdir($dirPath);
-}
-
-/**
- * Schreibt die neue version.php
- */
-private function updateVersionFile($newVersion) {
-    $versionFile = dirname(__DIR__) . '/version.php';
-    $content = "<?php\n\n";
-    $content .= "// Automatisch generiert durch VantixDash Updater\n";
-    $content .= "return [\n";
-    $content .= "    'version' => '" . htmlspecialchars($newVersion) . "',\n";
-    $content .= "    'last_update' => '" . date('d.m.Y H:i:s') . "',\n";
-    $content .= "    'branch' => 'main'\n";
-    $content .= "];\n";
-
-    return file_put_contents($versionFile, $content);
-}
-
-/**
- * Hilfsmethode: Verschiebt Dateien und Ordner rekursiv
- */
-private function moveRecursive($src, $dest) {
-    $files = array_diff(scandir($src), ['.', '..']);
-    foreach ($files as $file) {
-        $currentSrc = $src . '/' . $file;
-        $currentDest = $dest . '/' . $file;
-        
-        // WICHTIG: Deine persönlichen Daten NIEMALS überschreiben
-        if ($file === 'config.json' || $file === 'sites.json' || $file === '.htaccess') {
-            continue; 
-        }
-
-        if (is_dir($currentSrc)) {
-            if (!is_dir($currentDest)) mkdir($currentDest, 0755, true);
-            $this->moveRecursive($currentSrc, $currentDest);
-        } else {
-            // Systemdateien (einschließlich der neuen version.php aus dem ZIP) überschreiben
-            rename($currentSrc, $currentDest);
-        }
-    }
-}
-
-/**
- * Hilfsmethode: Löscht einen Ordner rekursiv (für den Cleanup)
- */
-private function deleteDir($dirPath) {
-    if (!is_dir($dirPath)) return;
-    $files = array_diff(scandir($dirPath), ['.', '..']);
-    foreach ($files as $file) {
-        (is_dir("$dirPath/$file")) ? $this->deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
-    }
     /**
- * Aktualisiert die lokale version.php nach einem erfolgreichen Update
- */
-private function updateVersionFile($newVersion) {
-    $versionFile = dirname(__DIR__) . '/version.php';
-    $content = "<?php\n\n";
-    $content .= "// Automatisch generiert durch VantixDash Updater\n";
-    $content .= "return [\n";
-    $content .= "    'version' => '" . htmlspecialchars($newVersion) . "',\n";
-    $content .= "    'last_update' => '" . date('Y-m-d H:i:s') . "',\n";
-    $content .= "    'branch' => 'main'\n";
-    $content .= "];\n";
+     * Hilfsmethode: Verschiebt Dateien rekursiv und schützt Nutzerkonfigurationen
+     */
+    private function moveRecursive($src, $dest) {
+        $files = array_diff(scandir($src), ['.', '..']);
+        foreach ($files as $file) {
+            $currentSrc = $src . '/' . $file;
+            $currentDest = $dest . '/' . $file;
+            
+            // Schutz vor Überschreiben der eigenen Config/Daten
+            $protected = ['config.json', 'sites.json', '.htaccess', 'config.php', 'sites.php'];
+            if (in_array($file, $protected)) continue;
 
-    return file_put_contents($versionFile, $content);
-}
-    return rmdir($dirPath);
-}
+            if (is_dir($currentSrc)) {
+                if (!is_dir($currentDest)) mkdir($currentDest, 0755, true);
+                $this->moveRecursive($currentSrc, $currentDest);
+            } else {
+                rename($currentSrc, $currentDest);
+            }
+        }
+    }
+
+    /**
+     * Hilfsmethode: Löscht einen Ordner und dessen Inhalt rekursiv
+     */
+    private function deleteDir($dirPath) {
+        if (!is_dir($dirPath)) return;
+        $files = array_diff(scandir($dirPath), ['.', '..']);
+        foreach ($files as $file) {
+            (is_dir("$dirPath/$file")) ? $this->deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
+        }
+        return rmdir($dirPath);
+    }
+
+    /**
+     * Hilfsmethode: Schreibt die neue version.php
+     */
+    private function updateVersionFile($newVersion) {
+        $versionFile = dirname(__DIR__) . '/version.php';
+        $content = "<?php\n\n";
+        $content .= "// Automatisch generiert durch VantixDash Updater\n";
+        $content .= "return [\n";
+        $content .= "    'version' => '" . htmlspecialchars($newVersion) . "',\n";
+        $content .= "    'last_update' => '" . date('d.m.Y H:i:s') . "',\n";
+        $content .= "    'branch' => 'main'\n";
+        $content .= "];\n";
+
+        return file_put_contents($versionFile, $content);
+    }
 }
