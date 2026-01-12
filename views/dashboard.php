@@ -43,9 +43,14 @@ $sites = $siteService->getAll();
     <div class="update-overview">
         <?php 
             // Sicherstellen, dass wir Integers haben, auch wenn der Key fehlt
-            $core    = (int)($site['updates']['core'] ?? 0);
-            $plugins = (int)($site['updates']['plugins'] ?? 0);
-            $themes  = (int)($site['updates']['themes'] ?? 0);
+            // Wir priorisieren die echten Einträge in 'details' vor dem Feld 'updates'
+    $pluginList = $site['details']['plugins'] ?? [];
+    $themeList  = $site['details']['themes'] ?? [];
+    $coreList   = $site['details']['core'] ?? [];
+
+    $plugins = (count($pluginList) > 0) ? count($pluginList) : (int)($site['updates']['plugins'] ?? 0);
+    $themes  = (count($themeList) > 0) ? count($themeList) : (int)($site['updates']['themes'] ?? 0);
+    $core    = (count($coreList) > 0) ? count($coreList) : (int)($site['updates']['core'] ?? 0);
         ?>
 
         <div class="update-pill <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core Updates">
