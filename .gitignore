@@ -1,6 +1,6 @@
 # --- Sensible Konfiguration ---
 # Enthält dein Admin-Passwort und den Secret Key
-config.php
+data/config.json
 
 # --- Anwendungsdaten ---
 # Verhindert, dass die Liste deiner Webseiten inkl. API-Keys auf GitHub landet
