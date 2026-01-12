@@ -477,3 +477,42 @@ tr:hover td {
     border-color: var(--primary);
     background: #eff6ff
 }
+.update-banner {
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.update-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+.update-text strong {
+    display: block;
+    color: #0d47a1;
+}
+
+.update-text span {
+    font-size: 0.9em;
+    color: #1565c0;
+}
+
+.main-button {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.main-button:hover {
+    background: #1976d2;
+}
