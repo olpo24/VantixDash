@@ -40,28 +40,35 @@ $sites = $siteService->getAll();
                     </div>
                     
                     <div class="card-body">
-                        <div class="update-overview">
-    <?php $coreUpdates = (int)($site['updates']['core'] ?? 0); ?>
-    <div class="update-pill <?php echo ($coreUpdates > 0) ? 'has-updates' : ''; ?>" title="Core Updates">
-        <i class="ph ph-cpu"></i>
-        <span><?php echo $coreUpdates; ?></span>
+    <div class="update-overview">
+        <?php 
+            // Sicherstellen, dass wir Integers haben, auch wenn der Key fehlt
+            $core    = (int)($site['updates']['core'] ?? 0);
+            $plugins = (int)($site['updates']['plugins'] ?? 0);
+            $themes  = (int)($site['updates']['themes'] ?? 0);
+        ?>
+
+        <div class="update-pill <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core Updates">
+            <i class="ph ph-cpu"></i>
+            <span><?php echo $core; ?></span>
+        </div>
+
+        <div class="update-pill <?php echo ($plugins > 0) ? 'has-updates' : ''; ?>" title="Plugins">
+            <i class="ph ph-plug"></i>
+            <span><?php echo $plugins; ?></span>
+        </div>
+
+        <div class="update-pill <?php echo ($themes > 0) ? 'has-updates' : ''; ?>" title="Themes">
+            <i class="ph ph-palette"></i>
+            <span><?php echo $themes; ?></span>
+        </div>
     </div>
 
-    <?php $pluginUpdates = (int)($site['updates']['plugins'] ?? 0); ?>
-    <div class="update-pill <?php echo ($pluginUpdates > 0) ? 'has-updates' : ''; ?>" title="Plugins">
-        <i class="ph ph-plug"></i>
-        <span><?php echo $pluginUpdates; ?></span>
-    </div>
-
-    <?php $themeUpdates = (int)($site['updates']['themes'] ?? 0); ?>
-    <div class="update-pill <?php echo ($themeUpdates > 0) ? 'has-updates' : ''; ?>" title="Themes">
-        <i class="ph ph-palette"></i>
-        <span><?php echo $themeUpdates; ?></span>
-    </div>
+    <p class="site-meta">
+        v<?php echo htmlspecialchars($site['wp_version'] ?? ($site['version'] ?? '0.0.0')); ?> 
+        • <?php echo htmlspecialchars($site['last_check'] ?? 'Nie geprüft'); ?>
+    </p>
 </div>
-                        </div>
-                        <p class="site-meta">v<?php echo htmlspecialchars($site['wp_version'] ?? $site['version']); ?> • <?php echo $site['last_check'] ?? 'Nie geprüft'; ?></p>
-                    </div>
 
                     <div class="card-footer">
                         <button class="action-link" onclick="openDetails('<?php echo $site['id']; ?>')">
