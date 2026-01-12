@@ -201,7 +201,31 @@ body {
 .status-indicator { width: 10px; height: 10px; border-radius: 50%; background: #ccc; }
 .status-indicator.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
 .status-indicator.offline { background: var(--danger); }
+.card-footer {
+    padding: 1rem 1.25rem;
+    background: #f8fafc;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    border-radius: 0 0 12px 12px;
+}
 
+.action-link {
+    background: none;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+}
+
+.action-link:hover {
+    color: var(--primary-hover);
+}
 .update-pill {
     flex: 1;
     display: flex;
