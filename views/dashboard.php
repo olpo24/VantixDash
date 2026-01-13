@@ -54,14 +54,16 @@ $sites = $siteService->getAll();
                                       style="margin: 0 auto;"></span>
                             </td>
                             <td>
-                                <div class="site-info">
-                                    <span class="site-name" style="font-weight: 600;">
-                                        <?php echo htmlspecialchars($site['name']); ?>
-                                    </span>
-                                    <small class="site-url" style="display: block; color: var(--text-muted); font-size: 0.75rem;">
-                                        <?php echo htmlspecialchars($site['url']); ?>
-                                    </small>
-                                </div>
+                                <td>
+    <div class="site-info">
+        <span class="site-name" style="font-weight: 600;">
+            <?php echo htmlspecialchars($site['name'], ENT_QUOTES, 'UTF-8'); ?>
+        </span>
+        <small class="site-url" style="display: block; color: var(--text-muted); font-size: 0.75rem;">
+            <?php echo htmlspecialchars($site['url'], ENT_QUOTES, 'UTF-8'); ?>
+        </small>
+    </div>
+</td>
                             </td>
                             <td>
                                 <div class="update-overview" style="display: flex; gap: 6px;">
@@ -76,11 +78,11 @@ $sites = $siteService->getAll();
                                     </div>
                                 </div>
                             </td>
-                            <td>
-                                <span class="text-muted" style="font-size: 0.9rem;">
-                                    v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0'); ?>
-                                </span>
-                            </td>
+                           <td>
+    <span class="text-muted" style="font-size: 0.9rem;">
+        v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0', ENT_QUOTES, 'UTF-8'); ?>
+    </span>
+</td>
                             <td style="text-align: right;">
                                 <div class="action-buttons" style="display: flex; justify-content: flex-end; gap: 8px;">
                                     <button class="icon-btn" onclick="openDetails('<?php echo $id; ?>')" title="Details">
