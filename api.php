@@ -140,7 +140,7 @@ switch ($action) {
                     'method' => 'GET',
                     'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
                                 "User-Agent: VantixDash-Monitor/1.0\r\n",
-                    'timeout' => 10,
+                    'timeout' => $configService->getTimeout('api'),
                     'ignore_errors' => true
                 ]
             ];
