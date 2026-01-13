@@ -132,4 +132,30 @@ switch ($action) {
     default:
         echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion']);
         break;
+		
+		// In der api.php im switch($action) Bereich:
+
+case 'update_profile':
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    // Logik zum Speichern in ConfigService/JSON
+    $success = $configService->updateUser($username, $email);
+    echo json_encode(['success' => $success]);
+    break;
+
+case 'update_password':
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
+    $new_pw = $_POST['new_password'] ?? '';
+    $confirm = $_POST['confirm_password'] ?? '';
+    
+    if ($new_pw !== $confirm || strlen($new_pw) < 8) {
+        echo json_encode(['success' => false, 'message' => 'Passwörter stimmen nicht überein oder zu kurz']);
+        break;
+    }
+    
+    $hash = password_hash($new_pw, PASSWORD_DEFAULT);
+    $success = $configService->updatePassword($hash);
+    echo json_encode(['success' => $success]);
+    break;
 }
