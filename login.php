@@ -1,13 +1,13 @@
-PHP
-
 <?php
 declare(strict_types=1);
 session_start();
 
 require_once 'services/ConfigService.php';
+require_once 'services/RateLimiter.php'; // Neu hinzugefügt
 require_once 'libs/GoogleAuthenticator.php';
 
 $configService = new ConfigService();
+$rateLimiter = new RateLimiter(); // Instanziiert
 $error = '';
 
 // Wenn der User bereits eingeloggt ist
@@ -17,68 +17,69 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? 'login';
+    // RATE LIMITING CHECK
+    // Wir begrenzen auf 5 Versuche pro 5 Minuten (300 Sek) basierend auf der IP
+    if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'], 5, 300)) {
+        $error = 'Zu viele Fehlversuche. Bitte warte 5 Minuten.';
+    } else {
+        $action = $_POST['action'] ?? 'login';
 
-    // SCHRITT 1: Benutzername und Passwort prüfen
-    if ($action === 'login') {
-        $user = $_POST['username'] ?? '';
-        $pass = $_POST['password'] ?? '';
+        // SCHRITT 1: Benutzername und Passwort prüfen
+        if ($action === 'login') {
+            $user = $_POST['username'] ?? '';
+            $pass = $_POST['password'] ?? '';
 
-        $storedUser = $configService->get('username');
-        $storedHash = $configService->get('password_hash');
+            $storedUser = $configService->get('username');
+            $storedHash = $configService->get('password_hash');
 
-        if ($user === $storedUser && password_verify($pass, $storedHash)) {
-            // Passwort korrekt! Prüfen, ob 2FA aktiv ist
-            if ($configService->get('2fa_enabled')) {
-                // Zwischenstatus für 2FA
-                $_SESSION['auth_pending'] = true; 
-                $_SESSION['temp_user'] = $user;
+            if ($user === $storedUser && password_verify($pass, $storedHash)) {
+                // Passwort korrekt! Prüfen, ob 2FA aktiv ist
+                if ($configService->get('2fa_enabled')) {
+                    // Zwischenstatus für 2FA
+                    $_SESSION['auth_pending'] = true; 
+                    $_SESSION['temp_user'] = $user;
+                } else {
+                    // KEIN 2FA -> Login abschließen
+                    session_regenerate_id(true);
+                    
+                    $_SESSION['logged_in'] = true;
+                    $_SESSION['username'] = $user;
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                    
+                    header('Location: index.php');
+                    exit;
+                }
             } else {
-                // KEIN 2FA -> Login abschließen
-                
-                // FIX: Session ID erneuern (verhindert Session Fixation)
+                $error = 'Ungültige Zugangsdaten';
+            }
+        }
+
+        // SCHRITT 2: 2FA Code verifizieren
+        if ($action === 'verify_2fa') {
+            if (!isset($_SESSION['auth_pending'])) {
+                header('Location: login.php');
+                exit;
+            }
+
+            $code = $_POST['2fa_code'] ?? '';
+            $ga = new PHPGangsta_GoogleAuthenticator();
+            $secret = (string)$configService->get('2fa_secret', '');
+
+            if ($ga->verifyCode($secret, $code, 2)) {
+                // 2FA korrekt! Login abschließen
                 session_regenerate_id(true);
                 
                 $_SESSION['logged_in'] = true;
-                $_SESSION['username'] = $user;
+                $_SESSION['username'] = $_SESSION['temp_user'] ?? '';
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                
+                unset($_SESSION['auth_pending'], $_SESSION['temp_user']);
                 
                 header('Location: index.php');
                 exit;
+            } else {
+                $error = 'Ungültiger 2FA Code';
             }
-        } else {
-            $error = 'Ungültige Zugangsdaten';
-        }
-    }
-
-    // SCHRITT 2: 2FA Code verifizieren
-    if ($action === 'verify_2fa') {
-        if (!isset($_SESSION['auth_pending'])) {
-            header('Location: login.php');
-            exit;
-        }
-
-        $code = $_POST['2fa_code'] ?? '';
-        $ga = new PHPGangsta_GoogleAuthenticator();
-        $secret = (string)$configService->get('2fa_secret', '');
-
-        if ($ga->verifyCode($secret, $code, 2)) {
-            // 2FA korrekt! Login abschließen
-            
-            // FIX: Session ID erneuern
-            session_regenerate_id(true);
-            
-            $_SESSION['logged_in'] = true;
-            $_SESSION['username'] = $_SESSION['temp_user'] ?? '';
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            
-            // Temporäre Daten aufräumen
-            unset($_SESSION['auth_pending'], $_SESSION['temp_user']);
-            
-            header('Location: index.php');
-            exit;
-        } else {
-            $error = 'Ungültiger 2FA Code';
         }
     }
 }
@@ -96,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h2>VantixDash</h2>
 
         <?php if ($error): ?>
-            <div class="alert error"><?php echo $error; ?></div>
+            <div class="alert error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <?php if (!isset($_SESSION['auth_pending'])): ?>
