@@ -1,80 +1,83 @@
 <?php
+declare(strict_types=1);
 
 class ConfigService {
-    private $settings = [];
-    private $versionData = [];
-    private $configPath;
+    private string $configFile;
+    private array $config = [];
 
-    public function __construct() {
-        $basePath = dirname(__DIR__) . '/';
-        $this->configPath = $basePath . 'data/config.json';
-        
-        // 1. Config laden
-        if (file_exists($this->configPath)) {
-            $this->settings = json_decode(file_get_contents($this->configPath), true) ?? [];
-        }
-
-        // 2. Version laden
-        if (file_exists($basePath . 'version.php')) {
-            $this->versionData = include $basePath . 'version.php';
-        }
-    }
-
-    public function get($key, $default = null) {
-        return $this->settings[$key] ?? $default;
-    }
-
-    public function getVersion() {
-        return $this->versionData['version'] ?? '0.0.0';
-    }
-
-    public function getAll() {
-        return $this->settings;
+    public function __construct(string $configFile = __DIR__ . '/../data/config.json') {
+        $this->configFile = $configFile;
+        $this->load();
     }
 
     /**
-     * Speichert die aktuellen Einstellungen zurück in die config.json
+     * Lädt die Konfiguration aus der JSON-Datei
      */
-    public function save() {
-        return file_put_contents($this->configPath, json_encode($this->settings, JSON_PRETTY_PRINT));
+    private function load(): void {
+        if (file_exists($this->configFile)) {
+            $content = file_get_contents($this->configFile);
+            if ($content !== false) {
+                $data = json_decode($content, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $this->config = is_array($data) ? $data : [];
+                }
+            }
+        }
     }
 
     /**
-     * Gibt die für das Profil relevanten Daten zurück
+     * Gibt einen Wert aus der Konfiguration zurück
      */
-    public function getUserData() {
+    public function get(string $key, $default = null) {
+        return $this->config[$key] ?? $default;
+    }
+
+    /**
+     * Gibt alle Benutzerdaten zurück
+     */
+    public function getUserData(): array {
         return [
-            'username'    => $this->get('username', ''),
-            'email'       => $this->get('email', ''),
-            '2fa_enabled' => $this->get('2fa_enabled', false)
+            'username'     => (string)$this->get('username', 'admin'),
+            'email'        => (string)$this->get('email', ''),
+            '2fa_enabled'  => (bool)$this->get('2fa_enabled', false),
+            'last_login'   => (string)$this->get('last_login', 'Nie')
         ];
     }
 
     /**
-     * Aktualisiert Username und Email
+     * Aktualisiert Stammdaten des Benutzers
      */
-    public function updateUser($username, $email) {
-        $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)));
-        $this->settings['email']    = filter_var($email, FILTER_SANITIZE_EMAIL);
+    public function updateUser(string $username, string $email): bool {
+        $this->config['username'] = $username;
+        $this->config['email'] = $email;
         return $this->save();
     }
 
     /**
-     * Aktualisiert den Passwort-Hash
+     * Aktualisiert das Passwort-Hash
      */
-    public function updatePassword($hash) {
-        $this->settings['password_hash'] = $hash;
+    public function updatePassword(string $hash): bool {
+        $this->config['password_hash'] = $hash;
         return $this->save();
     }
 
     /**
-     * 2FA Status und Secret setzen
+     * Aktiviert oder deaktiviert 2FA
      */
-    public function update2FA($enabled, $secret = null) {
-        $this->settings['2fa_enabled'] = (bool)$enabled;
-        if ($secret !== null) {
-            $this->settings['2fa_secret'] = $secret;
+    public function update2FA(bool $enabled, ?string $secret): bool {
+        $this->config['2fa_enabled'] = $enabled;
+        $this->config['2fa_secret'] = $secret;
+        return $this->save();
+    }
+
+    /**
+     * Speichert die aktuelle Konfiguration in die Datei
+     */
+    public function save(): bool {
+        $jsonContent = json_encode($this->config, JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            return false;
         }
-        return $this->save();
+        return file_put_contents($this->configFile, $jsonContent) !== false;
     }
 }
