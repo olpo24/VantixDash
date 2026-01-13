@@ -8,6 +8,8 @@ header('Content-Type: application/json');
 // 1. SERVICES LADEN
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+$ga = new PHPGangsta_GoogleAuthenticator();
 
 // 2. INITIALISIERUNG
 $configService = new ConfigService();
@@ -157,5 +159,36 @@ case 'update_password':
     $hash = password_hash($new_pw, PASSWORD_DEFAULT);
     $success = $configService->updatePassword($hash);
     echo json_encode(['success' => $success]);
+    break;
+		case 'setup_2fa':
+    // Erstellt ein temporäres Secret für die Einrichtung
+    $secret = $ga->createSecret();
+    $_SESSION['temp_2fa_secret'] = $secret;
+    $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash (' . $_SESSION['username'] . ')');
+    
+    echo json_encode([
+        'success' => true, 
+        'qrCodeUrl' => $qrCodeUrl, 
+        'secret' => $secret
+    ]);
+    break;
+
+case 'verify_2fa':
+    $code = $_POST['code'] ?? '';
+    $secret = $_SESSION['temp_2fa_secret'] ?? '';
+    
+    if ($ga->verifyCode($secret, $code, 2)) { // 2 = 60 Sekunden Zeitdrift erlaubt
+        $configService->update2FA(true, $secret);
+        unset($_SESSION['temp_2fa_secret']);
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Ungültiger Code. Bitte erneut versuchen.']);
+    }
+    break;
+
+case 'disable_2fa':
+    // 2FA deaktivieren (Secret löschen)
+    $configService->update2FA(false, null);
+    echo json_encode(['success' => true]);
     break;
 }
