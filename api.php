@@ -5,15 +5,24 @@
 session_start();
 header('Content-Type: application/json');
 
-// 1. SERVICES LADEN
+// 1. SERVICES & LIBS
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
-require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 
-// 2. INITIALISIERUNG
-$configService = new ConfigService();
-$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
+/**
+ * Portabler Ersatz für getallheaders()
+ * Extrahiert Header-Werte aus der $_SERVER Superglobalen
+ */
+function getRequestHeader(string $name): string {
+    $name = strtoupper(str_replace('-', '_', $name));
+    return $_SERVER['HTTP_' . $name] ?? '';
+}
+
+// 2. INITIALISIERUNG (Dependency Injection)
 $ga = new PHPGangsta_GoogleAuthenticator();
+$configService = new ConfigService($ga);
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
 
 // 3. SICHERHEITSPRÜFUNGEN
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -25,10 +34,10 @@ $action = $_GET['action'] ?? '';
 
 // CSRF-Check für schreibende Aktionen (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $headers = getallheaders();
-    $token = $headers['X-CSRF-TOKEN'] ?? $_POST['csrf_token'] ?? '';
+    // Portabler Header-Check + Fallback auf POST-Feld
+    $token = getRequestHeader('X-CSRF-TOKEN') ?: ($_POST['csrf_token'] ?? '');
     
-    if (empty($token) || $token !== $_SESSION['csrf_token']) {
+    if (empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
         echo json_encode(['success' => false, 'message' => 'CSRF-Token ungültig']);
         exit;
     }
