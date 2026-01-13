@@ -15,6 +15,28 @@ if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off") {
 // HSTS Header (Browser merkt sich HTTPS für 1 Jahr)
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
 session_start();
+// Nach session_start()
+$timeout = 3600; // 1 Stunde in Sekunden
+
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+        // Session ist abgelaufen
+        session_unset();     // Variablen löschen
+        session_destroy();   // Session zerstören
+        
+        // Bei API-Requests senden wir ein JSON, bei Seitenaufrufen einen Redirect
+        if (str_contains($_SERVER['PHP_SELF'], 'api.php')) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Session abgelaufen. Bitte neu einloggen.']);
+            exit;
+        } else {
+            header('Location: login.php?timeout=1');
+            exit;
+        }
+    }
+    // Aktivität aktualisieren
+    $_SESSION['last_activity'] = time();
+}
 
 
 // 1. SERVICES LADEN
