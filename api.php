@@ -91,27 +91,45 @@ switch ($action) {
 
         if ($targetSite) {
             $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
+            
             $options = [
                 'http' => [
                     'method' => 'GET',
                     'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n" .
                                 "User-Agent: VantixDash-Monitor/1.0\r\n",
-                    'timeout' => 10
+                    'timeout' => 10,
+                    'ignore_errors' => true // Erlaubt uns, den Body auch bei 4xx/5xx Fehlern zu lesen
                 ]
             ];
             
             $context = stream_context_create($options);
-            $response = @file_get_contents($apiUrl, false, $context);
-            
-            if ($response) {
+
+            try {
+                // Hier wurde das @ entfernt
+                $response = file_get_contents($apiUrl, false, $context);
+                
+                if ($response === false) {
+                    throw new Exception('Verbindung zum Child-Plugin fehlgeschlagen (Netzwerkfehler).');
+                }
+
                 $data = json_decode($response, true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new Exception('Ungültige Antwort vom Child-Plugin (JSON Fehler).');
+                }
+
                 if (isset($data['login_url'])) {
                     echo json_encode(['success' => true, 'login_url' => $data['login_url']]);
                 } else {
-                    echo json_encode(['success' => false, 'message' => 'Keine Login-URL vom Child-Plugin erhalten.']);
+                    $errorMsg = $data['message'] ?? 'Keine Login-URL vom Child-Plugin erhalten.';
+                    echo json_encode(['success' => false, 'message' => htmlspecialchars($errorMsg)]);
                 }
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Verbindung zum Child-Plugin fehlgeschlagen.']);
+
+            } catch (Exception $e) {
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Fehler: ' . htmlspecialchars($e->getMessage())
+                ]);
             }
         } else {
             echo json_encode(['success' => false, 'message' => 'Seite nicht gefunden.']);
