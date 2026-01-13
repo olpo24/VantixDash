@@ -9,11 +9,11 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
-$ga = new PHPGangsta_GoogleAuthenticator();
 
 // 2. INITIALISIERUNG
 $configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
+$ga = new PHPGangsta_GoogleAuthenticator();
 
 // 3. SICHERHEITSPRÜFUNGEN
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -50,7 +50,10 @@ switch ($action) {
             break;
         }
         $success = $siteService->installUpdate($url);
-        echo json_encode(['success' => $success, 'message' => $success ? 'Update installiert' : 'Installation fehlgeschlagen']);
+        echo json_encode([
+            'success' => $success, 
+            'message' => $success ? 'Update installiert' : 'Installation fehlgeschlagen'
+        ]);
         break;
 
     case 'refresh_site':
@@ -63,7 +66,10 @@ switch ($action) {
         if ($updatedSite) {
             echo json_encode(['success' => true, 'data' => $updatedSite]);
         } else {
-            echo json_encode(['success' => false, 'message' => 'Verbindung zur WordPress-Seite fehlgeschlagen. Prüfe API-Key und Plugin-Status.']);
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Verbindung zur WordPress-Seite fehlgeschlagen. Prüfe API-Key und Plugin-Status.'
+            ]);
         }
         break;
 
@@ -74,7 +80,6 @@ switch ($action) {
             break;
         }
 
-        // Wir holen alle Seiten, um die URL und den API-Key der Zielseite zu finden
         $sites = $siteService->getAll();
         $targetSite = null;
         foreach ($sites as $site) {
@@ -86,7 +91,6 @@ switch ($action) {
 
         if ($targetSite) {
             $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
-            
             $options = [
                 'http' => [
                     'method' => 'GET',
@@ -131,64 +135,60 @@ switch ($action) {
         echo json_encode(['success' => $success]);
         break;
 
+    case 'update_profile':
+        $username = $_POST['username'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $success = $configService->updateUser($username, $email);
+        echo json_encode(['success' => $success]);
+        break;
+
+    case 'update_password':
+        $new_pw = $_POST['new_password'] ?? '';
+        $confirm = $_POST['confirm_password'] ?? '';
+        
+        if ($new_pw !== $confirm || strlen($new_pw) < 8) {
+            echo json_encode(['success' => false, 'message' => 'Passwörter stimmen nicht überein oder zu kurz']);
+            break;
+        }
+        
+        $hash = password_hash($new_pw, PASSWORD_DEFAULT);
+        $success = $configService->updatePassword($hash);
+        echo json_encode(['success' => $success]);
+        break;
+
+    case 'setup_2fa':
+        $secret = $ga->createSecret();
+        $_SESSION['temp_2fa_secret'] = $secret;
+        // XSS Schutz: Username escapen für den Issuer-String
+        $safeUser = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
+        $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash (' . $safeUser . ')');
+        
+        echo json_encode([
+            'success' => true, 
+            'qrCodeUrl' => $qrCodeUrl, 
+            'secret' => $secret
+        ]);
+        break;
+
+    case 'verify_2fa':
+        $code = $_POST['code'] ?? '';
+        $secret = $_SESSION['temp_2fa_secret'] ?? '';
+        
+        if ($ga->verifyCode($secret, $code, 2)) {
+            $configService->update2FA(true, $secret);
+            unset($_SESSION['temp_2fa_secret']);
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Ungültiger Code. Bitte erneut versuchen.']);
+        }
+        break;
+
+    case 'disable_2fa':
+        $configService->update2FA(false, null);
+        echo json_encode(['success' => true]);
+        break;
+
     default:
         echo json_encode(['success' => false, 'message' => 'Unbekannte Aktion']);
         break;
-		
-		// In der api.php im switch($action) Bereich:
-
-case 'update_profile':
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
-    $username = $_POST['username'] ?? '';
-    $email = $_POST['email'] ?? '';
-    // Logik zum Speichern in ConfigService/JSON
-    $success = $configService->updateUser($username, $email);
-    echo json_encode(['success' => $success]);
-    break;
-
-case 'update_password':
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
-    $new_pw = $_POST['new_password'] ?? '';
-    $confirm = $_POST['confirm_password'] ?? '';
-    
-    if ($new_pw !== $confirm || strlen($new_pw) < 8) {
-        echo json_encode(['success' => false, 'message' => 'Passwörter stimmen nicht überein oder zu kurz']);
-        break;
-    }
-    
-    $hash = password_hash($new_pw, PASSWORD_DEFAULT);
-    $success = $configService->updatePassword($hash);
-    echo json_encode(['success' => $success]);
-    break;
-		case 'setup_2fa':
-    // Erstellt ein temporäres Secret für die Einrichtung
-    $secret = $ga->createSecret();
-    $_SESSION['temp_2fa_secret'] = $secret;
-    $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash (' . $_SESSION['username'] . ')');
-    
-    echo json_encode([
-        'success' => true, 
-        'qrCodeUrl' => $qrCodeUrl, 
-        'secret' => $secret
-    ]);
-    break;
-
-case 'verify_2fa':
-    $code = $_POST['code'] ?? '';
-    $secret = $_SESSION['temp_2fa_secret'] ?? '';
-    
-    if ($ga->verifyCode($secret, $code, 2)) { // 2 = 60 Sekunden Zeitdrift erlaubt
-        $configService->update2FA(true, $secret);
-        unset($_SESSION['temp_2fa_secret']);
-        echo json_encode(['success' => true]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Ungültiger Code. Bitte erneut versuchen.']);
-    }
-    break;
-
-case 'disable_2fa':
-    // 2FA deaktivieren (Secret löschen)
-    $configService->update2FA(false, null);
-    echo json_encode(['success' => true]);
-    break;
 }
