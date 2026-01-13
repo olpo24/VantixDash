@@ -28,13 +28,41 @@ class SiteService {
         }
     }
 
-    public function save(?array $sites = null): bool {
-        if ($sites !== null) {
-            $this->sites = $sites;
-        }
-        $result = file_put_contents($this->file, json_encode(array_values($this->sites), JSON_PRETTY_PRINT));
-        return $result !== false;
+/**
+ * Speichert die aktuellen Seiten atomar in die JSON-Datei
+ */
+public function save(?array $sites = null): bool {
+    if ($sites !== null) {
+        $this->sites = $sites;
     }
+
+    $jsonContent = json_encode(array_values($this->sites), JSON_PRETTY_PRINT);
+    if ($jsonContent === false) {
+        return false;
+    }
+
+    // 1. Temporären Dateinamen generieren
+    $tempFile = $this->file . '.tmp.' . bin2hex(random_bytes(8));
+
+    // 2. In Temp-Datei schreiben mit exklusivem Lock
+    // LOCK_EX verhindert, dass andere Prozesse gleichzeitig in DIESE Temp-Datei schreiben
+    if (file_put_contents($tempFile, $jsonContent, LOCK_EX) === false) {
+        return false;
+    }
+
+    // 3. Atomares Ersetzen (Rename)
+    // Das Betriebssystem tauscht den Dateizeiger aus. 
+    // Ein lesender Prozess sieht entweder die alte ODER die neue Datei, niemals ein Fragment.
+    if (!rename($tempFile, $this->file)) {
+        // Falls Rename fehlschlägt, Temp-Datei aufräumen
+        if (file_exists($tempFile)) {
+            unlink($tempFile);
+        }
+        return false;
+    }
+
+    return true;
+}
 
     public function getAll(): array { 
         return $this->sites; 
