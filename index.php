@@ -16,10 +16,10 @@ if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off") {
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
 session_start();
 // Nach session_start()
-$timeout = 3600; // 1 Stunde in Sekunden
+$sessionTimeout = $configService->getTimeout('session');
 
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $sessionTimeout)) {
         // Session ist abgelaufen
         session_unset();     // Variablen löschen
         session_destroy();   // Session zerstören
