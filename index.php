@@ -2,6 +2,18 @@
 /**
  * index.php - Zentraler Router und Service-Initialisierung
  */
+/**
+ * HTTPS erzwingen & HSTS
+ */
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off") {
+    $location = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    header('HTTP/1.1 301 Moved Permanently');
+    header('Location: ' . $location);
+    exit;
+}
+
+// HSTS Header (Browser merkt sich HTTPS für 1 Jahr)
+header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
 session_start();
 
 // 1. SERVICES LADEN
