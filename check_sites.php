@@ -1,76 +1,77 @@
 <?php
 /**
- * check_sites.php
- * Cronjob-Skript zum Abrufen der WordPress-Statusdaten.
- * Kann manuell oder per System-Cron aufgerufen werden.
+ * check_sites.php - Hintergrund-Check für WordPress-Instanzen
+ * Diese Datei sollte per Cronjob (CLI) oder sicherem Web-Call aufgerufen werden.
  */
 
-// Falls das Skript über den Browser aufgerufen wird, Sicherheit prüfen
-if (php_sapi_name() !== 'cli') {
-    session_start();
-    if (!isset($_SESSION['authenticated'])) {
-        die("Nicht autorisiert.");
-    }
-}
+declare(strict_types=1);
 
+require_once __DIR__ . '/services/ConfigService.php';
+require_once __DIR__ . '/services/SiteService.php';
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+
+// 1. INITIALISIERUNG
+$ga = new PHPGangsta_GoogleAuthenticator();
+$config = new ConfigService($ga);
 $sitesFile = __DIR__ . '/data/sites.json';
+$siteService = new SiteService($sitesFile, $config);
 
-if (!file_exists($sitesFile)) {
-    die("Keine sites.json gefunden.");
-}
+// 2. SICHERHEITSPRÜFUNG (CLI vs. WEB)
+if (php_sapi_name() !== 'cli') {
+    $providedToken = $_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
+    $secretToken = (string)$config->get('cron_secret', '');
 
-$sites = json_decode(file_get_contents($sitesFile), true);
-if (!$sites) die("Keine Webseiten zum Prüfen vorhanden.");
+    // Falls noch kein Token existiert, generieren wir einmalig einen
+    if (empty($secretToken)) {
+        $secretToken = bin2hex(random_bytes(32));
+        // Wir gehen davon aus, dass ConfigService eine set() Methode hat (siehe unten)
+        $config->updateCronSecret($secretToken); 
+    }
 
-echo "Starte Prüfung von " . count($sites) . " Seiten...\n";
-
-foreach ($sites as &$site) {
-    echo "Prüfe: " . $site['url'] . " ... ";
-
-    $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
-    $apiKey = $site['api_key'];
-
-    $ch = curl_init($apiUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'X-Vantix-Secret: ' . $apiKey,
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15); // 15 Sekunden Timeout
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    
-    // SSL Prüfung für lokale Entwicklung/selbstsignierte Zertifikate ggf. deaktivieren
-    // curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode === 200 && $response) {
-        $data = json_decode($response, true);
-        
-        if ($data) {
-            $site['status'] = 'online';
-            $site['version'] = $data['version'] ?? '-';
-            $site['php'] = $data['php'] ?? '-';
-            $site['updates'] = [
-                'core'    => $data['core'] ?? 0,
-                'plugins' => $data['plugins'] ?? 0,
-                'themes'  => $data['themes'] ?? 0
-            ];
-            $site['details'] = $data['details'] ?? ['core' => [], 'plugins' => [], 'themes' => []];
-            $site['last_check'] = date('Y-m-d H:i:s');
-            echo "ERFOLG\n";
-        } else {
-            $site['status'] = 'error';
-            echo "FEHLER (Ungültige JSON Antwort)\n";
-        }
-    } else {
-        $site['status'] = 'offline';
-        echo "FEHLER (HTTP Code $httpCode)\n";
+    // Zeitkonstanter Vergleich gegen Timing-Attacks
+    if (empty($providedToken) || !hash_equals($secretToken, $providedToken)) {
+        header('Content-Type: application/json', true, 403);
+        echo json_encode(['success' => false, 'message' => 'Nicht autorisiert.']);
+        exit;
     }
 }
 
-// Ergebnisse speichern
-file_put_contents($sitesFile, json_encode(array_values($sites), JSON_PRETTY_PRINT));
-echo "Prüfung abgeschlossen und gespeichert.\n";
+// 3. LOGIK: ALLE SEITEN AKTUALISIEREN
+$sites = $siteService->getAll();
+$results = [
+    'timestamp' => date('Y-m-d H:i:s'),
+    'checked'   => 0,
+    'updated'   => 0,
+    'errors'    => 0
+];
+
+echo "Starte VantixDash Hintergrund-Check...\n";
+
+foreach ($sites as $site) {
+    $results['checked']++;
+    echo "Prüfe: " . ($site['name'] ?? $site['url']) . " ... ";
+
+    try {
+        // Nutzt die bereits gehärtete Methode aus SiteService
+        $updatedData = $siteService->refreshSiteData($site['id']);
+        
+        if ($updatedData) {
+            echo "Erfolg (v" . ($updatedData['wp_version'] ?? '?.?.?') . ")\n";
+            $results['updated']++;
+        } else {
+            echo "Fehlgeschlagen (Offline)\n";
+            $results['errors']++;
+        }
+    } catch (Exception $e) {
+        echo "Fehler: " . $e->getMessage() . "\n";
+        $results['errors']++;
+    }
+}
+
+echo "Check abgeschlossen. " . $results['updated'] . " von " . $results['checked'] . " Seiten aktualisiert.\n";
+
+// Optional: JSON-Response für Web-Aufrufe
+if (php_sapi_name() !== 'cli') {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'results' => $results]);
+}
