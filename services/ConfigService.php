@@ -119,4 +119,25 @@ public function updateCronSecret(string $token): bool {
     $this->set('cron_secret', $token); // Nutzt intern die set-Methode
     return $this->save();              // Schreibt es permanent fest
 }
+	/**
+ * Holt eine Einstellung mit einem Fallback-Standardwert
+ */
+public function get(string $key, $default = null) {
+    return $this->settings[$key] ?? $default;
+}
+
+/**
+ * Hilfsmethode für Timeouts (zentrale Verwaltung)
+ */
+public function getTimeout(string $type): int {
+    $defaults = [
+        'api'           => 10,
+        'site_check'    => 15,
+        'session'       => 3600,
+        'rate_limit'    => 300
+    ];
+    
+    // Sucht in config.json, sonst nimm den Standard aus der Liste oben
+    return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
+}
 }
