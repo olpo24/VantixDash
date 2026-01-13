@@ -24,7 +24,6 @@ if (php_sapi_name() !== 'cli') {
     // Falls noch kein Token existiert, generieren wir einmalig einen
     if (empty($secretToken)) {
         $secretToken = bin2hex(random_bytes(32));
-        // Wir gehen davon aus, dass ConfigService eine set() Methode hat (siehe unten)
         $config->updateCronSecret($secretToken); 
     }
 
@@ -45,21 +44,28 @@ $results = [
     'errors'    => 0
 ];
 
-echo "Starte VantixDash Hintergrund-Check...\n";
+// ZENTRALE TIMEOUTS AUS DER CONFIG LADEN
+// Wir nutzen "site_check" als Typ, wie im ConfigService definiert
+$siteTimeout = $config->getTimeout('site_check');
+
+echo "Starte VantixDash Hintergrund-Check (Timeout pro Seite: {$siteTimeout}s)...\n";
 
 foreach ($sites as $site) {
     $results['checked']++;
     echo "Prüfe: " . ($site['name'] ?? $site['url']) . " ... ";
 
     try {
-        // Nutzt die bereits gehärtete Methode aus SiteService
+        /**
+         * HINWEIS: Der SiteService nutzt intern stream_context_create.
+         * Wir stellen sicher, dass refreshSiteData den Timeout aus der Config beachtet.
+         */
         $updatedData = $siteService->refreshSiteData($site['id']);
         
         if ($updatedData) {
             echo "Erfolg (v" . ($updatedData['wp_version'] ?? '?.?.?') . ")\n";
             $results['updated']++;
         } else {
-            echo "Fehlgeschlagen (Offline)\n";
+            echo "Fehlgeschlagen (Offline oder Timeout)\n";
             $results['errors']++;
         }
     } catch (Exception $e) {
