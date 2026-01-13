@@ -2,6 +2,7 @@
 /**
  * api.php - Zentraler AJAX-Endpunkt für VantixDash
  */
+declare(strict_types=1);
 session_start();
 header('Content-Type: application/json');
 
@@ -9,22 +10,31 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
+require_once __DIR__ . '/services/RateLimiter.php';
 
 /**
  * Portabler Ersatz für getallheaders()
- * Extrahiert Header-Werte aus der $_SERVER Superglobalen
  */
 function getRequestHeader(string $name): string {
     $name = strtoupper(str_replace('-', '_', $name));
     return $_SERVER['HTTP_' . $name] ?? '';
 }
 
-// 2. INITIALISIERUNG (Dependency Injection)
+// 2. INITIALISIERUNG
+$rateLimiter = new RateLimiter();
 $ga = new PHPGangsta_GoogleAuthenticator();
 $configService = new ConfigService($ga);
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
 
-// 3. SICHERHEITSPRÜFUNGEN
+// 3. RATE LIMITING (Globaler Schutz vor API-Abuse)
+// 30 Anfragen pro Minute pro IP
+if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'], 30, 60)) {
+    http_response_code(429);
+    echo json_encode(['success' => false, 'message' => 'Zu viele Anfragen. Bitte kurz warten.']);
+    exit;
+}
+
+// 4. AUTHENTIFIZIERUNGSPRÜFUNG
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     echo json_encode(['success' => false, 'message' => 'Nicht autorisiert']);
     exit;
@@ -32,9 +42,8 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 $action = $_GET['action'] ?? '';
 
-// CSRF-Check für schreibende Aktionen (POST)
+// 5. CSRF-SCHUTZ für schreibende Aktionen (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Portabler Header-Check + Fallback auf POST-Feld
     $token = getRequestHeader('X-CSRF-TOKEN') ?: ($_POST['csrf_token'] ?? '');
     
     if (empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
@@ -43,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 4. ROUTING DER AKTIONEN
+// 6. ROUTING DER AKTIONEN
 switch ($action) {
 
     case 'check_update':
@@ -101,20 +110,22 @@ switch ($action) {
         if ($targetSite) {
             $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
             
+            // FIX: Header-Injection verhindern (API-Key bereinigen)
+            $safeApiKey = preg_replace('/[\r\n]/', '', (string)$targetSite['api_key']);
+            
             $options = [
                 'http' => [
                     'method' => 'GET',
-                    'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n" .
+                    'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
                                 "User-Agent: VantixDash-Monitor/1.0\r\n",
                     'timeout' => 10,
-                    'ignore_errors' => true // Erlaubt uns, den Body auch bei 4xx/5xx Fehlern zu lesen
+                    'ignore_errors' => true
                 ]
             ];
             
             $context = stream_context_create($options);
 
             try {
-                // Hier wurde das @ entfernt
                 $response = file_get_contents($apiUrl, false, $context);
                 
                 if ($response === false) {
@@ -131,7 +142,7 @@ switch ($action) {
                     echo json_encode(['success' => true, 'login_url' => $data['login_url']]);
                 } else {
                     $errorMsg = $data['message'] ?? 'Keine Login-URL vom Child-Plugin erhalten.';
-                    echo json_encode(['success' => false, 'message' => htmlspecialchars($errorMsg)]);
+                    echo json_encode(['success' => false, 'message' => htmlspecialchars((string)$errorMsg)]);
                 }
 
             } catch (Exception $e) {
@@ -146,20 +157,36 @@ switch ($action) {
         break;
 
     case 'add_site':
-        $name = $_POST['name'] ?? '';
-        $url = $_POST['url'] ?? '';
-		$custom_key = $_POST['api_key'] ?? ''; // Falls manuell eingebbar
+        $name = trim($_POST['name'] ?? '');
+        $url  = trim($_POST['url'] ?? '');
 
-    if ($custom_key && !preg_match('/^[A-Za-z0-9-]{16,64}$/', $custom_key)) {
-        echo json_encode(['success' => false, 'message' => 'API-Key enthält ungültige Zeichen oder ist zu kurz.']);
-        break;
-    }
-        if ($name && $url) {
-            $newSite = $siteService->addSite($name, $url);
-            echo json_encode(['success' => (bool)$newSite, 'site' => $newSite]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Name oder URL fehlt']);
+        if (strlen($name) < 2 || strlen($name) > 100 || strlen($url) > 255) {
+            echo json_encode(['success' => false, 'message' => 'Name (2-100 Zeichen) oder URL (max 255) ungültig']);
+            break;
         }
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            echo json_encode(['success' => false, 'message' => 'Ungültiges URL-Format']);
+            break;
+        }
+
+        $parsedUrl = parse_url($url);
+        $host = $parsedUrl['host'] ?? '';
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                echo json_encode(['success' => false, 'message' => 'Private IP-Adressen sind aus Sicherheitsgründen nicht erlaubt']);
+                break;
+            }
+        }
+
+        if (!in_array($parsedUrl['scheme'] ?? '', ['http', 'https'], true)) {
+            echo json_encode(['success' => false, 'message' => 'Nur http:// und https:// sind erlaubt']);
+            break;
+        }
+
+        $newSite = $siteService->addSite($name, $url);
+        echo json_encode(['success' => (bool)$newSite, 'site' => $newSite]);
         break;
 
     case 'delete_site':
@@ -192,8 +219,7 @@ switch ($action) {
     case 'setup_2fa':
         $secret = $ga->createSecret();
         $_SESSION['temp_2fa_secret'] = $secret;
-        // XSS Schutz: Username escapen für den Issuer-String
-        $safeUser = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
+        $safeUser = htmlspecialchars((string)($_SESSION['username'] ?? 'User'), ENT_QUOTES, 'UTF-8');
         $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash (' . $safeUser . ')');
         
         echo json_encode([
