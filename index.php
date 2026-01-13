@@ -16,6 +16,7 @@ if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off") {
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
 session_start();
 
+
 // 1. SERVICES LADEN
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
@@ -52,6 +53,7 @@ if (!file_exists($viewPath)) {
 }
 
 // 4. HEADER / NAVIGATION (Hier kannst du dein HTML-Gerüst laden)
+$safeView = htmlspecialchars($view, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -66,10 +68,10 @@ if (!file_exists($viewPath)) {
 
 <nav class="main-nav">
     <div style="color: white; font-weight: 800; margin-right: 1rem;">VantixDash</div>
-    <a href="index.php?view=dashboard" class="<?php echo $view === 'dashboard' ? 'active' : ''; ?>">Dashboard</a>
-    <a href="index.php?view=manage_sites" class="<?php echo $view === 'manage_sites' ? 'active' : ''; ?>">Seiten</a>
-    <a href="index.php?view=settings_general" class="<?php echo $view === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
-	<a href="index.php?view=profile" class="<?php echo ($view === 'profile') ? 'active' : ''; ?>">Profil</a>
+    <a href="index.php?view=dashboard" class="<?php echo $safeView === 'dashboard' ? 'active' : ''; ?>">Dashboard</a>
+    <a href="index.php?view=manage_sites" class="<?php echo $safeView=== 'manage_sites' ? 'active' : ''; ?>">Seiten</a>
+    <a href="index.php?view=settings_general" class="<?php echo $safeView === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
+	<a href="index.php?view=profile" class="<?php echo ($safeView === 'profile') ? 'active' : ''; ?>">Profil</a>
 	<a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
        
 </div>
