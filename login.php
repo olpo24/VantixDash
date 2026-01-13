@@ -1,53 +1,68 @@
 <?php
-/**
- * login.php
- * Verarbeitet den Login unter Nutzung des ConfigService (JSON)
- */
-
 session_start();
-require_once __DIR__ . '/services/ConfigService.php';
+require_once 'services/ConfigService.php';
+require_once 'libs/GoogleAuthenticator.php';
 
-// Falls bereits eingeloggt, direkt zum Dashboard
+$configService = new ConfigService();
+$error = '';
+
+// Wenn der User bereits eingeloggt ist
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     header('Location: index.php');
     exit;
 }
 
-$configService = new ConfigService();
-$error = '';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $user = $_POST['username'] ?? '';
-    $pass = $_POST['password'] ?? '';
+    $action = $_POST['action'] ?? 'login';
 
-    // Daten aus dem ConfigService holen (ehemals aus der config.php)
-    $storedUser = $configService->get('username');
-    $storedHash = $configService->get('password_hash');
-    $is2faEnabled = $configService->get('2fa_enabled', false);
+    // SCHRITT 1: Benutzername und Passwort prüfen
+    if ($action === 'login') {
+        $user = $_POST['username'] ?? '';
+        $pass = $_POST['password'] ?? '';
 
-    if ($user === $storedUser && password_verify($pass, $storedHash)) {
-        
-        // Login erfolgreich - prüfen ob 2FA nötig ist
-        if ($is2faEnabled) {
-            // Wir merken uns den User temporär und leiten zur 2FA-Seite weiter
-            $_SESSION['temp_user_for_2fa'] = $user;
-            header('Location: login_2fa.php');
+        $storedUser = $configService->get('username');
+        $storedHash = $configService->get('password_hash');
+
+        if ($user === $storedUser && password_verify($pass, $storedHash)) {
+            // Passwort korrekt! Prüfen, ob 2FA aktiv ist
+            if ($configService->get('2fa_enabled')) {
+                $_SESSION['auth_pending'] = true; // Zwischenstatus
+                $_SESSION['temp_user'] = $user;
+            } else {
+                // Kein 2FA -> Direkt einloggen
+                $_SESSION['logged_in'] = true;
+                $_SESSION['username'] = $user;
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                header('Location: index.php');
+                exit;
+            }
+        } else {
+            $error = 'Ungültige Zugangsdaten';
+        }
+    }
+
+    // SCHRITT 2: 2FA Code verifizieren
+    if ($action === 'verify_2fa') {
+        if (!isset($_SESSION['auth_pending'])) {
+            header('Location: login.php');
             exit;
         }
 
-        // Kein 2FA? Dann direkt rein ins Dashboard
-        $_SESSION['logged_in'] = true;
-        $_SESSION['username'] = $user;
-        
-        // CSRF-Token generieren (WICHTIG für deine Sicherheit!)
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        }
+        $code = $_POST['2fa_code'] ?? '';
+        $ga = new PHPGangsta_GoogleAuthenticator();
+        $secret = $configService->get('2fa_secret');
 
-        header('Location: index.php');
-        exit;
-    } else {
-        $error = 'Ungültige Zugangsdaten.';
+        if ($ga->verifyCode($secret, $code, 2)) {
+            // 2FA korrekt!
+            $_SESSION['logged_in'] = true;
+            $_SESSION['username'] = $_SESSION['temp_user'];
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            unset($_SESSION['auth_pending'], $_SESSION['temp_user']);
+            header('Location: index.php');
+            exit;
+        } else {
+            $error = 'Ungültiger 2FA Code';
+        }
     }
 }
 ?>
@@ -57,33 +72,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Login - VantixDash</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: #f8f9fa; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        .login-card { width: 100%; max-width: 400px; padding: 2rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); background: white; }
-    </style>
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
+<body class="login-page">
+    <div class="login-card card">
+        <h2>VantixDash</h2>
 
-<div class="login-card">
-    <h3 class="text-center mb-4 fw-bold">VantixDash</h3>
-    
-    <?php if($error): ?>
-        <div class="alert alert-danger py-2 small text-center"><?php echo $error; ?></div>
-    <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="alert error"><?php echo $error; ?></div>
+        <?php endif; ?>
 
-    <form method="POST">
-        <div class="mb-3">
-            <label class="form-label small fw-bold">Benutzername</label>
-            <input type="text" name="username" class="form-control" required autofocus>
-        </div>
-        <div class="mb-4">
-            <label class="form-label small fw-bold">Passwort</label>
-            <input type="password" name="password" class="form-control" required>
-        </div>
-        <button type="submit" class="btn btn-primary w-100 fw-bold">Anmelden</button>
-    </form>
-</div>
-
+        <?php if (!isset($_SESSION['auth_pending'])): ?>
+            <form method="POST">
+                <input type="hidden" name="action" value="login">
+                <div class="form-group">
+                    <label>Benutzername</label>
+                    <input type="text" name="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Passwort</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="primary-button full-width">Anmelden</button>
+            </form>
+        <?php else: ?>
+            <form method="POST">
+                <input type="hidden" name="action" value="verify_2fa">
+                <p>Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:</p>
+                <div class="form-group">
+                    <input type="text" name="2fa_code" placeholder="000000" maxlength="6" 
+                           style="font-size: 2rem; text-align: center; letter-spacing: 5px;" autofocus required>
+                </div>
+                <button type="submit" class="primary-button full-width">Verifizieren & Einloggen</button>
+                <a href="logout.php" class="text-link" style="display:block; margin-top:15px; text-align:center;">Abbrechen</a>
+            </form>
+        <?php endif; ?>
+    </div>
 </body>
 </html>
