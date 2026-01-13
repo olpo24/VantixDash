@@ -1,16 +1,22 @@
 <?php
-class SiteService {
-    private $file;
-    private $config;
-    private $sites = [];
+declare(strict_types=1);
 
-    public function __construct($file, $config) {
+class SiteService {
+    private string $file;
+    private ConfigService $config;
+    private array $sites = [];
+
+    /**
+     * @param string $file Pfad zur sites.json
+     * @param ConfigService $config Instanz des ConfigService
+     */
+    public function __construct(string $file, ConfigService $config) {
         $this->file = $file;
         $this->config = $config;
         $this->load();
     }
 
-    private function load() {
+    private function load(): void {
         if (file_exists($this->file)) {
             $content = file_get_contents($this->file);
             if ($content !== false) {
@@ -22,14 +28,23 @@ class SiteService {
         }
     }
 
-    public function save($sites = null) {
-        if ($sites !== null) $this->sites = $sites;
-        return file_put_contents($this->file, json_encode(array_values($this->sites), JSON_PRETTY_PRINT));
+    public function save(?array $sites = null): bool {
+        if ($sites !== null) {
+            $this->sites = $sites;
+        }
+        $result = file_put_contents($this->file, json_encode(array_values($this->sites), JSON_PRETTY_PRINT));
+        return $result !== false;
     }
 
-    public function getAll() { return $this->sites; }
+    public function getAll(): array { 
+        return $this->sites; 
+    }
 
-    public function refreshSiteData($id) {
+    /**
+     * Aktualisiert die Daten einer WordPress-Seite via API
+     * @return array|false Die aktualisierten Daten oder false bei Fehler
+     */
+    public function refreshSiteData(string $id) {
         foreach ($this->sites as &$site) {
             if ($site['id'] === $id) {
                 $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
@@ -40,13 +55,11 @@ class SiteService {
                         'header' => "X-Vantix-Secret: " . $site['api_key'] . "\r\n" .
                                     "User-Agent: VantixDash-Monitor/1.0\r\n",
                         'timeout' => 15,
-                        'ignore_errors' => true // Erlaubt das Lesen des Bodys auch bei Fehlern (z.B. 403)
+                        'ignore_errors' => true
                     ]
                 ];
                 
                 $context = stream_context_create($options);
-                
-                // @ entfernt - wir prüfen das Ergebnis explizit
                 $response = file_get_contents($apiUrl, false, $context);
 
                 if ($response !== false) {
@@ -54,8 +67,8 @@ class SiteService {
                     
                     if (json_last_error() === JSON_ERROR_NONE && isset($data['version'])) {
                         $site['status'] = 'online';
-                        $site['wp_version'] = $data['version'];
-                        $site['php'] = $data['php'] ?? 'unknown';
+                        $site['wp_version'] = (string)$data['version'];
+                        $site['php'] = (string)($data['php'] ?? 'unknown');
                         
                         $site['updates'] = [
                             'core'    => (int)($data['core'] ?? 0),
@@ -63,13 +76,13 @@ class SiteService {
                             'themes'  => (int)($data['themes'] ?? 0)
                         ];
 
-                        $site['plugin_list'] = $data['plugin_list'] ?? [];
-                        $site['theme_list']  = $data['theme_list'] ?? [];
+                        $site['plugin_list'] = (array)($data['plugin_list'] ?? []);
+                        $site['theme_list']  = (array)($data['theme_list'] ?? []);
                         
                         $site['details'] = [
                             'core' => [],
-                            'plugins' => $data['plugin_list'] ?? [],
-                            'themes' => $data['theme_list'] ?? []
+                            'plugins' => $site['plugin_list'],
+                            'themes' => $site['theme_list']
                         ];
 
                         $site['last_check'] = date('Y-m-d H:i:s');
@@ -78,7 +91,6 @@ class SiteService {
                     }
                 }
                 
-                // Wenn wir hier landen, war der Request oder das JSON fehlerhaft
                 $site['status'] = 'offline';
                 $site['last_check'] = date('Y-m-d H:i:s');
                 $this->save();
@@ -88,16 +100,17 @@ class SiteService {
         return false;
     }
 
-    private function isValidApiKey($key) {
-        // Erlaubt: A-Z, a-z, 0-9 und - (Mind. 16 Zeichen)
-        return preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
+    private function isValidApiKey(string $key): bool {
+        return (bool)preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
     }
 
-    public function addSite($name, $url) {
-        // Generiere einen sicheren API-Key
+    /**
+     * Fügt eine neue Seite hinzu
+     * @return array|false Die neue Seite oder false bei Validierungsfehler
+     */
+    public function addSite(string $name, string $url) {
         $apiKey = bin2hex(random_bytes(16)); 
         
-        // Validierung des generierten oder übergebenen Keys
         if (!$this->isValidApiKey($apiKey)) {
             return false; 
         }
@@ -121,7 +134,7 @@ class SiteService {
         return $newSite;
     }
 
-    public function deleteSite($id) {
+    public function deleteSite(string $id): bool {
         foreach ($this->sites as $k => $s) {
             if ($s['id'] === $id) { 
                 unset($this->sites[$k]); 
