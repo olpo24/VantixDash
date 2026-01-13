@@ -80,13 +80,13 @@ public function save(?array $sites = null): bool {
             // FIX: Header Injection verhindern
             // Wir entfernen alle Zeilenumbrüche aus dem API-Key
             $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
-            
+            $timeout = $this->config->getTimeout('site_check'); // Wert nutzen!
             $options = [
                 'http' => [
                     'method' => 'GET',
                     'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
                                 "User-Agent: VantixDash-Monitor/1.0\r\n",
-                    'timeout' => 15,
+                    'timeout' => $timeout,
                     'ignore_errors' => true
                 ]
             ];
