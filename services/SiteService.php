@@ -82,8 +82,17 @@ class SiteService {
         }
         return false;
     }
-
+private function isValidApiKey($key) {
+    // Erlaubt: A-Z, a-z, 0-9 und -
+    // Länge: Mindestens 16 Zeichen (Sicherheitsempfehlung)
+    return preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
+}
     public function addSite($name, $url) {
+		$apiKey = bin2hex(random_bytes(16)); // Falls du ihn generierst
+    // Wenn der Key von extern kommt oder validiert werden muss:
+    if (!$this->isValidApiKey($apiKey)) {
+        return false; 
+    }
         $id = uniqid();
         $newSite = [
             'id' => $id,
