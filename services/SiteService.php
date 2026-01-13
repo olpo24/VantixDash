@@ -73,21 +73,25 @@ public function save(?array $sites = null): bool {
      * @return array|false Die aktualisierten Daten oder false bei Fehler
      */
     public function refreshSiteData(string $id) {
-        foreach ($this->sites as &$site) {
-            if ($site['id'] === $id) {
-                $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
-                
-                $options = [
-                    'http' => [
-                        'method' => 'GET',
-                        'header' => "X-Vantix-Secret: " . $site['api_key'] . "\r\n" .
-                                    "User-Agent: VantixDash-Monitor/1.0\r\n",
-                        'timeout' => 15,
-                        'ignore_errors' => true
-                    ]
-                ];
-                
-                $context = stream_context_create($options);
+    foreach ($this->sites as &$site) {
+        if ($site['id'] === $id) {
+            $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
+            
+            // FIX: Header Injection verhindern
+            // Wir entfernen alle Zeilenumbrüche aus dem API-Key
+            $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
+            
+            $options = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
+                                "User-Agent: VantixDash-Monitor/1.0\r\n",
+                    'timeout' => 15,
+                    'ignore_errors' => true
+                ]
+            ];
+            
+            $context = stream_context_create($options);
                 $response = file_get_contents($apiUrl, false, $context);
 
                 if ($response !== false) {
