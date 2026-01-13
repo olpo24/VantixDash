@@ -58,3 +58,31 @@ $user_data = $configService->getUserData();
         </div>
     </div>
 </div>
+<script>
+document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const response = await fetch('api.php?action=update_profile', {
+        method: 'POST',
+        body: formData
+    });
+    const result = await response.json();
+    alert(result.success ? 'Profil aktualisiert!' : 'Fehler beim Speichern.');
+});
+
+document.getElementById('password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    if(formData.get('new_password') !== formData.get('confirm_password')) {
+        alert('Passwörter stimmen nicht überein!');
+        return;
+    }
+    const response = await fetch('api.php?action=update_password', {
+        method: 'POST',
+        body: formData
+    });
+    const result = await response.json();
+    alert(result.success ? 'Passwort geändert!' : result.message);
+    if(result.success) e.target.reset();
+});
+</script>
