@@ -121,6 +121,12 @@ switch ($action) {
     case 'add_site':
         $name = $_POST['name'] ?? '';
         $url = $_POST['url'] ?? '';
+		$custom_key = $_POST['api_key'] ?? ''; // Falls manuell eingebbar
+
+    if ($custom_key && !preg_match('/^[A-Za-z0-9-]{16,64}$/', $custom_key)) {
+        echo json_encode(['success' => false, 'message' => 'API-Key enthält ungültige Zeichen oder ist zu kurz.']);
+        break;
+    }
         if ($name && $url) {
             $newSite = $siteService->addSite($name, $url);
             echo json_encode(['success' => (bool)$newSite, 'site' => $newSite]);
