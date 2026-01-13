@@ -105,4 +105,18 @@ class ConfigService {
         }
         return $this->save();
     }
+/**
+ * Setzt einen Wert im Speicher (ohne sofort zu speichern)
+ */
+public function set(string $key, $value): void {
+    $this->settings[$key] = $value;
+}
+
+/**
+ * Aktualisiert das Cron-Secret und schreibt es sofort in die Datei
+ */
+public function updateCronSecret(string $token): bool {
+    $this->set('cron_secret', $token); // Nutzt intern die set-Methode
+    return $this->save();              // Schreibt es permanent fest
+}
 }
