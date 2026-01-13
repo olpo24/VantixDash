@@ -53,8 +53,7 @@ $sites = $siteService->getAll();
                                       title="Status: <?php echo $status; ?>"
                                       style="margin: 0 auto;"></span>
                             </td>
-                            <td>
-                                <td>
+                                      <td>
     <div class="site-info">
         <span class="site-name" style="font-weight: 600;">
             <?php echo htmlspecialchars($site['name'], ENT_QUOTES, 'UTF-8'); ?>
@@ -64,8 +63,7 @@ $sites = $siteService->getAll();
         </small>
     </div>
 </td>
-                            </td>
-                            <td>
+                                                        <td>
                                 <div class="update-overview" style="display: flex; gap: 6px;">
                                     <div class="update-pill mini <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core">
                                         <i class="ph ph-cpu"></i> <span><?php echo $core; ?></span>
