@@ -172,53 +172,99 @@ window.onclick = (event) => {
      * Einzelne Seite aktualisieren (API Check)
      */
     window.refreshSite = async (id) => {
-    // 1. Die Card finden
-    const card = document.querySelector(`.site-card[data-id="${id}"]`);
-    if (!card) {
-        console.error(`Card mit ID ${id} nicht gefunden.`);
+    // Suche die Tabellenzeile statt der Card
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) {
+        console.error(`Zeile mit ID ${id} nicht gefunden.`);
         return;
     }
 
-    // 2. Das Icon im Button finden (sicherer Selektor)
-    const icon = card.querySelector('.refresh-single i');
+    const btn = row.querySelector('.refresh-single');
+    const icon = btn.querySelector('i');
     
-    // Animation starten, falls das Icon existiert
-    if (icon) icon.classList.add('ph-spin');
+    // Animation starten
+    icon.classList.add('ph-spin');
+    btn.disabled = true;
 
     try {
         const response = await fetch(`api.php?action=refresh_site&id=${id}`);
         const result = await response.json();
-        
-        if (result.success) {
-            // Seite neu laden, um die neuen Daten aus der JSON anzuzeigen
-            window.location.reload();
+
+        if (result.success && result.data) {
+            const site = result.data;
+            
+            // 1. Status-Punkt aktualisieren
+            const indicator = row.querySelector('.status-indicator');
+            indicator.className = `status-indicator ${site.status}`;
+            
+            // 2. Update-Pillen aktualisieren
+            // Hier greifen wir auf die Indizes der Pillen zu (0=Core, 1=Plugins, 2=Themes)
+            const pills = row.querySelectorAll('.update-pill');
+            
+            const updates = [
+                { count: site.updates.core, el: pills[0] },
+                { count: site.updates.plugins, el: pills[1] },
+                { count: site.updates.themes, el: pills[2] }
+            ];
+
+            updates.forEach(item => {
+                if (item.el) {
+                    item.el.querySelector('span').innerText = item.count;
+                    if (item.count > 0) {
+                        item.el.classList.add('has-updates');
+                    } else {
+                        item.el.classList.remove('has-updates');
+                    }
+                }
+            });
+
+            // 3. WP Version und Zeit aktualisieren
+            const versionCell = row.cells[3]; // Die 4. Spalte (Index 3)
+            if (versionCell) {
+                versionCell.innerHTML = `<span class="text-muted" style="font-size: 0.9rem;">v${site.wp_version}</span>`;
+            }
+
         } else {
-            alert("Fehler beim Prüfen: " + result.message);
+            alert("Fehler: " + (result.message || "Unbekannter Fehler"));
         }
     } catch (e) {
-        console.error("API Fehler:", e);
-        alert("Verbindung zur API fehlgeschlagen.");
+        console.error("Refresh Error:", e);
     } finally {
         // Animation stoppen
-        if (icon) icon.classList.remove('ph-spin');
+        icon.classList.remove('ph-spin');
+        btn.disabled = false;
     }
 };
 
     /**
      * Alle Seiten nacheinander prüfen
      */
-    window.refreshAllSites = async () => {
-        const cards = document.querySelectorAll('.site-card');
-        const icon = document.getElementById('refresh-all-icon');
-        icon.classList.add('ph-spin');
+   window.refreshAllSites = async () => {
+    // 1. Alle Tabellenzeilen finden, die eine ID haben
+    const rows = document.querySelectorAll('tbody tr[data-id]');
+    const refreshIcon = document.getElementById('refresh-all-icon');
+    
+    if (rows.length === 0) return;
 
-        for (const card of cards) {
-            const id = card.getAttribute('data-id');
-            await refreshSite(id);
-        }
+    // Animation am Haupt-Button starten
+    if (refreshIcon) refreshIcon.classList.add('ph-spin');
 
-        icon.classList.remove('ph-spin');
-    };
+    // 2. Alle Zeilen nacheinander (oder parallel) abarbeiten
+    // Wir nutzen hier die bereits existierende refreshSite Funktion
+    const promises = Array.from(rows).map(row => {
+        const id = row.getAttribute('data-id');
+        return refreshSite(id); // Diese Funktion haben wir im vorherigen Schritt angepasst
+    });
+
+    try {
+        await Promise.all(promises);
+    } catch (e) {
+        console.error("Fehler beim globalen Refresh:", e);
+    } finally {
+        // Animation am Haupt-Button stoppen
+        if (refreshIcon) refreshIcon.classList.remove('ph-spin');
+    }
+};
 
     /**
      * Platzhalter für Update-Aktionen (Plugin/Theme/Core)
