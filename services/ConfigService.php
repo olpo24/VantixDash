@@ -2,82 +2,107 @@
 declare(strict_types=1);
 
 class ConfigService {
-    private string $configFile;
-    private array $config = [];
+    private array $settings = [];
+    private array $versionData = [];
+    private string $configPath;
 
-    public function __construct(string $configFile = __DIR__ . '/../data/config.json') {
-        $this->configFile = $configFile;
-        $this->load();
-    }
-
-    /**
-     * Lädt die Konfiguration aus der JSON-Datei
-     */
-    private function load(): void {
-        if (file_exists($this->configFile)) {
-            $content = file_get_contents($this->configFile);
+    public function __construct() {
+        $basePath = dirname(__DIR__) . '/';
+        $this->configPath = $basePath . 'data/config.json';
+        
+        // 1. Config laden (Ohne @, mit expliziter Prüfung)
+        if (file_exists($this->configPath)) {
+            $content = file_get_contents($this->configPath);
             if ($content !== false) {
-                $data = json_decode($content, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $this->config = is_array($data) ? $data : [];
-                }
+                $decoded = json_decode($content, true);
+                $this->settings = is_array($decoded) ? $decoded : [];
+            }
+        }
+
+        // 2. Version laden (include ist für Arrays in PHP völlig legitim)
+        $versionFile = $basePath . 'version.php';
+        if (file_exists($versionFile)) {
+            $this->versionData = include $versionFile;
+            if (!is_array($this->versionData)) {
+                $this->versionData = [];
             }
         }
     }
 
     /**
-     * Gibt einen Wert aus der Konfiguration zurück
+     * Gibt einen Wert aus den Einstellungen zurück
      */
     public function get(string $key, $default = null) {
-        return $this->config[$key] ?? $default;
+        return $this->settings[$key] ?? $default;
     }
 
     /**
-     * Gibt alle Benutzerdaten zurück
+     * Gibt die App-Version zurück
+     */
+    public function getVersion(): string {
+        return (string)($this->versionData['version'] ?? '0.0.0');
+    }
+
+    /**
+     * Gibt alle Einstellungen zurück
+     */
+    public function getAll(): array {
+        return $this->settings;
+    }
+
+    /**
+     * Speichert die aktuellen Einstellungen zurück in die config.json
+     */
+    public function save(): bool {
+        $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            return false;
+        }
+        $result = file_put_contents($this->configPath, $jsonContent);
+        return $result !== false;
+    }
+
+    /**
+     * Gibt die für das Profil relevanten Daten zurück
      */
     public function getUserData(): array {
         return [
-            'username'     => (string)$this->get('username', 'admin'),
-            'email'        => (string)$this->get('email', ''),
-            '2fa_enabled'  => (bool)$this->get('2fa_enabled', false),
-            'last_login'   => (string)$this->get('last_login', 'Nie')
+            'username'    => (string)$this->get('username', ''),
+            'email'       => (string)$this->get('email', ''),
+            '2fa_enabled' => (bool)$this->get('2fa_enabled', false)
         ];
     }
 
     /**
-     * Aktualisiert Stammdaten des Benutzers
+     * Aktualisiert Username und Email mit Sanitizing
      */
     public function updateUser(string $username, string $email): bool {
-        $this->config['username'] = $username;
-        $this->config['email'] = $email;
+        // Trimmen und Tags entfernen für den Usernamen
+        $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
+        
+        // E-Mail Validierung / Sanitizing
+        $sanitizedEmail = filter_var($email, FILTER_SANITIZE_EMAIL);
+        $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : '';
+        
         return $this->save();
     }
 
     /**
-     * Aktualisiert das Passwort-Hash
+     * Aktualisiert den Passwort-Hash
      */
     public function updatePassword(string $hash): bool {
-        $this->config['password_hash'] = $hash;
+        $this->settings['password_hash'] = $hash;
         return $this->save();
     }
 
     /**
-     * Aktiviert oder deaktiviert 2FA
+     * 2FA Status und Secret setzen
      */
-    public function update2FA(bool $enabled, ?string $secret): bool {
-        $this->config['2fa_enabled'] = $enabled;
-        $this->config['2fa_secret'] = $secret;
-        return $this->save();
-    }
-
-    /**
-     * Speichert die aktuelle Konfiguration in die Datei
-     */
-    public function save(): bool {
-        $jsonContent = json_encode($this->config, JSON_PRETTY_PRINT);
-        if ($jsonContent === false) {
-            return false;
+    public function update2FA(bool $enabled, ?string $secret = null): bool {
+        $this->settings['2fa_enabled'] = $enabled;
+        if ($secret !== null) {
+            $this->settings['2fa_secret'] = $secret;
         }
-        return file_put_contents($this->configFile, $jsonContent) !== false;
+        return $this->save();
     }
 }
