@@ -1,5 +1,9 @@
+PHP
+
 <?php
+declare(strict_types=1);
 session_start();
+
 require_once 'services/ConfigService.php';
 require_once 'libs/GoogleAuthenticator.php';
 
@@ -26,13 +30,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user === $storedUser && password_verify($pass, $storedHash)) {
             // Passwort korrekt! Prüfen, ob 2FA aktiv ist
             if ($configService->get('2fa_enabled')) {
-                $_SESSION['auth_pending'] = true; // Zwischenstatus
+                // Zwischenstatus für 2FA
+                $_SESSION['auth_pending'] = true; 
                 $_SESSION['temp_user'] = $user;
             } else {
-                // Kein 2FA -> Direkt einloggen
+                // KEIN 2FA -> Login abschließen
+                
+                // FIX: Session ID erneuern (verhindert Session Fixation)
+                session_regenerate_id(true);
+                
                 $_SESSION['logged_in'] = true;
                 $_SESSION['username'] = $user;
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                
                 header('Location: index.php');
                 exit;
             }
@@ -50,14 +60,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $code = $_POST['2fa_code'] ?? '';
         $ga = new PHPGangsta_GoogleAuthenticator();
-        $secret = $configService->get('2fa_secret');
+        $secret = (string)$configService->get('2fa_secret', '');
 
         if ($ga->verifyCode($secret, $code, 2)) {
-            // 2FA korrekt!
+            // 2FA korrekt! Login abschließen
+            
+            // FIX: Session ID erneuern
+            session_regenerate_id(true);
+            
             $_SESSION['logged_in'] = true;
-            $_SESSION['username'] = $_SESSION['temp_user'];
+            $_SESSION['username'] = $_SESSION['temp_user'] ?? '';
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            
+            // Temporäre Daten aufräumen
             unset($_SESSION['auth_pending'], $_SESSION['temp_user']);
+            
             header('Location: index.php');
             exit;
         } else {
