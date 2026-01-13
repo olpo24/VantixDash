@@ -288,4 +288,43 @@ window.onclick = (event) => {
         console.error("Login Error:", e);
     }
 };
+	async function start2FASetup() {
+    const response = await fetch('api.php?action=setup_2fa');
+    const data = await response.json();
+    
+    if (data.success) {
+        document.getElementById('2fa-qr-img').src = data.qrCodeUrl;
+        document.getElementById('2fa-secret-text').innerText = data.secret;
+        document.getElementById('2fa-setup-modal').style.display = 'flex';
+    }
+}
+
+async function confirm2FA() {
+    const code = document.getElementById('2fa-verify-code').value;
+    const formData = new FormData();
+    formData.append('code', code);
+
+    const response = await fetch('api.php?action=verify_2fa', {
+        method: 'POST',
+        body: formData
+    });
+    const data = await response.json();
+
+    if (data.success) {
+        alert('2FA erfolgreich aktiviert!');
+        location.reload();
+    } else {
+        alert(data.message);
+    }
+}
+
+async function disable2FA() {
+    if (!confirm('Möchtest du 2FA wirklich deaktivieren?')) return;
+    const response = await fetch('api.php?action=disable_2fa');
+    if ((await response.json()).success) location.reload();
+}
+
+function close2FAModal() {
+    document.getElementById('2fa-setup-modal').style.display = 'none';
+}
 });
