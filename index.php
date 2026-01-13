@@ -28,7 +28,8 @@ $allowedViews = [
     'add_site'         => 'views/add_site.php',
 	'edit_site'         => 'views/edit_site.php',
     'settings_general' => 'views/settings_general.php',
-    'settings_profile' => 'views/settings_profile.php'
+    'settings_profile' => 'views/settings_profile.php',
+	'profile'		=> 'views/profile.php'
 ];
 
 $viewPath = $allowedViews[$view] ?? 'views/dashboard.php';
@@ -56,6 +57,7 @@ if (!file_exists($viewPath)) {
     <a href="index.php?view=dashboard" class="<?php echo $view === 'dashboard' ? 'active' : ''; ?>">Dashboard</a>
     <a href="index.php?view=manage_sites" class="<?php echo $view === 'manage_sites' ? 'active' : ''; ?>">Seiten</a>
     <a href="index.php?view=settings_general" class="<?php echo $view === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
+	<a href="index.php?view=profile" class="<?php echo ($view === 'profile') ? 'active' : ''; ?>">Profil</a>
 	<a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
        
 </div>
