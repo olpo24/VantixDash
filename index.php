@@ -14,7 +14,7 @@ if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === "off") {
     exit;
 }
 
-// HSTS Header (Browser merkt sich HTTPS für 1 Jahr)
+// HSTS Header
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -23,23 +23,24 @@ header('X-Frame-Options: SAMEORIGIN');
 session_start();
 
 // 3. SERVICES LADEN
+require_once __DIR__ . '/services/Logger.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
 
 // 4. INITIALISIERUNG
+$logger = new Logger(); // Neuer Logger Service
 $configService = new ConfigService();
-$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
+// SiteService erhält nun auch den Logger für internes Error-Logging
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
 
-// 5. SESSION-TIMEOUT PRÜFUNG (Muss NACH $configService Initialisierung stehen)
+// 5. SESSION-TIMEOUT PRÜFUNG
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $sessionTimeout = $configService->getTimeout('session');
 
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $sessionTimeout)) {
-        // Session ist abgelaufen
-        session_unset();     // Variablen löschen
-        session_destroy();   // Session zerstören
+        session_unset();
+        session_destroy();
         
-        // Bei API-Requests senden wir ein JSON, bei Seitenaufrufen einen Redirect
         if (str_contains($_SERVER['PHP_SELF'], 'api.php')) {
             http_response_code(401);
             echo json_encode(['success' => false, 'message' => 'Session abgelaufen. Bitte neu einloggen.']);
@@ -49,25 +50,24 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             exit;
         }
     }
-    // Aktivität aktualisieren
     $_SESSION['last_activity'] = time();
 }
 
-// 6. AUTH-CHECK (Login-Check)
+// 6. AUTH-CHECK
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header('Location: login.php');
     exit;
 }
 
-// CSRF-Token sicherstellen für das Dashboard
+// CSRF-Token sicherstellen
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 7. ROUTING (Welche View soll geladen werden?)
+// 7. ROUTING
 $view = $_GET['view'] ?? 'dashboard';
 
-// Erlaubte Views (Whitelisting für Sicherheit)
+// Erlaubte Views erweitert um 'logs'
 $allowedViews = [
     'dashboard'        => 'views/dashboard.php',
     'manage_sites'     => 'views/manage_sites.php',
@@ -75,17 +75,16 @@ $allowedViews = [
     'edit_site'        => 'views/edit_site.php',
     'settings_general' => 'views/settings_general.php',
     'settings_profile' => 'views/settings_profile.php',
-    'profile'          => 'views/profile.php'
+    'profile'          => 'views/profile.php',
+    'logs'             => 'views/logs.php' // NEU: Log-Viewer
 ];
 
 $viewPath = $allowedViews[$view] ?? 'views/dashboard.php';
 
-// Falls die Datei fehlt, Dashboard laden
 if (!file_exists($viewPath)) {
     $viewPath = 'views/dashboard.php';
 }
 
-// 8. HTML-AUSGABE
 $safeView = htmlspecialchars($view, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
@@ -105,13 +104,14 @@ $safeView = htmlspecialchars($view, ENT_QUOTES, 'UTF-8');
     <a href="index.php?view=dashboard" class="<?php echo $safeView === 'dashboard' ? 'active' : ''; ?>">Dashboard</a>
     <a href="index.php?view=manage_sites" class="<?php echo $safeView === 'manage_sites' ? 'active' : ''; ?>">Seiten</a>
     <a href="index.php?view=settings_general" class="<?php echo $safeView === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
+    <a href="index.php?view=logs" class="<?php echo $safeView === 'logs' ? 'active' : ''; ?>">Logs</a>
     <a href="index.php?view=profile" class="<?php echo $safeView === 'profile' ? 'active' : ''; ?>">Profil</a>
     <a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
 </nav>
 
     <main class="content-wrapper">
         <?php 
-            // Die Services ($configService, $siteService) stehen automatisch in der View zur Verfügung
+            // Services stehen in den Views zur Verfügung
             include $viewPath; 
         ?>
     </main>
