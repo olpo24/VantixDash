@@ -1,10 +1,14 @@
 <?php
 declare(strict_types=1);
+
 namespace VantixDash;
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Pfade zu den PHPMailer Dateien - Stelle sicher, dass diese existieren!
+/**
+ * MailService - Verwaltet den E-Mail-Versand via PHPMailer
+ */
 require_once __DIR__ . '/../libs/PHPMailer/Exception.php';
 require_once __DIR__ . '/../libs/PHPMailer/PHPMailer.php';
 require_once __DIR__ . '/../libs/PHPMailer/SMTP.php';
@@ -18,26 +22,39 @@ class MailService {
         $this->logger = $logger;
     }
 
+    /**
+     * Versendet eine E-Mail unter Nutzung der zentralen Konfiguration
+     */
     public function send(string $to, string $subject, string $bodyHtml, string $altText = ''): bool {
         $mail = new PHPMailer(true);
         
-        // Hier lag der Fehler: Aufruf von getSmtpConfig() statt getSmtpSettings()
-        $smtpSettings = $this->config->getSmtpConfig(); 
+        // Nutzt die neue typsichere getArray-Methode
+        $smtp = $this->config->getSmtpConfig(); 
 
         try {
-            // SMTP Einstellungen
+            // Server Einstellungen
             $mail->isSMTP();
-			$mail->Timeout = 10;
-            $mail->Host       = $smtpSettings['host'];
+            $mail->CharSet = 'UTF-8';
+            $mail->Timeout = $this->config->getTimeout('api'); // Zentrales Timeout nutzen
+            
+            $mail->Host       = (string)($smtp['host'] ?? '');
             $mail->SMTPAuth   = true;
-            $mail->Username   = $smtpSettings['user'];
-            $mail->Password   = $smtpSettings['pass'];
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Standard für Port 587
-            $mail->Port       = (int)$smtpSettings['port'];
-            $mail->CharSet    = 'UTF-8';
+            $mail->Username   = (string)($smtp['user'] ?? '');
+            $mail->Password   = (string)($smtp['pass'] ?? '');
+            $mail->Port       = (int)($smtp['port'] ?? 587);
+
+            // Automatische Verschlüsselungswahl basierend auf dem Port
+            if ($mail->Port === 465) {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            }
 
             // Absender & Empfänger
-            $mail->setFrom($smtpSettings['from_email'], $smtpSettings['from_name']);
+            $fromEmail = (string)($smtp['from_email'] ?? 'no-reply@vantixdash.local');
+            $fromName  = (string)($smtp['from_name'] ?? 'VantixDash');
+            
+            $mail->setFrom($fromEmail, $fromName);
             $mail->addAddress($to);
 
             // Inhalt
@@ -48,11 +65,13 @@ class MailService {
 
             $mail->send();
             return true;
+
         } catch (Exception $e) {
-            // Detaillierten Fehler ins VantixDash Log schreiben
+            // Logging mit Kontext für einfachere Fehlersuche
             $this->logger->error("SMTP Versandfehler: " . $mail->ErrorInfo, [
-                'to' => $to,
-                'host' => $smtpSettings['host']
+                'to'    => $to,
+                'host'  => $smtp['host'] ?? 'unknown',
+                'port'  => $smtp['port'] ?? 'unknown'
             ]);
             return false;
         }
