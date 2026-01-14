@@ -5,9 +5,44 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     /**
+     * ZENTRALER LOADING-HANDLER
+     * Steuert visuelles Feedback während API-Anfragen
+     */
+    const setLoading = (isLoading) => {
+        const buttons = document.querySelectorAll('button:not(.close-btn)');
+        const mainContent = document.querySelector('.content-wrapper');
+
+        buttons.forEach(btn => {
+            if (isLoading) {
+                // Originalinhalt speichern, um ihn später wiederherzustellen
+                if (!btn.dataset.originalHtml) {
+                    btn.dataset.originalHtml = btn.innerHTML;
+                }
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-circle-notch ph-spin"></i>';
+            } else {
+                if (btn.dataset.originalHtml) {
+                    btn.innerHTML = btn.dataset.originalHtml;
+                }
+                btn.disabled = false;
+            }
+        });
+
+        if (isLoading) {
+            document.body.style.cursor = 'wait';
+            if (mainContent) mainContent.style.opacity = '0.7';
+        } else {
+            document.body.style.cursor = 'default';
+            if (mainContent) mainContent.style.opacity = '1';
+        }
+    };
+
+    /**
      * ZENTRALER API-HANDLER
+     * Inklusive Error-Boundary und automatischer Lade-Anzeige
      */
     const apiCall = async (action, method = 'GET', data = null) => {
+        setLoading(true);
         const url = `api.php?action=${action}`;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
@@ -25,18 +60,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const response = await fetch(url, options);
-            const result = await response.json();
-
+            
+            // Erst auf HTTP-Fehler prüfen, bevor wir versuchen JSON zu parsen
             if (!response.ok) {
-                handleHttpError(response.status, result.message);
+                let errorMsg = 'Ein unbekannter Fehler ist aufgetreten.';
+                try {
+                    const errorJson = await response.json();
+                    errorMsg = errorJson.message;
+                } catch (e) { /* Fallback auf Standardnachricht */ }
+                
+                handleHttpError(response.status, errorMsg);
                 return null;
             }
 
+            const result = await response.json();
             return result;
+
         } catch (error) {
             console.error("API Error:", error);
-            showToast('Netzwerkfehler oder Server nicht erreichbar', 'error');
+            showToast('Netzwerkfehler oder Server nicht erreichbar. Bitte prüfen Sie Ihre Verbindung.', 'error');
             return null;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -50,18 +95,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = 'login.php?timeout=1';
                 break;
             case 403: 
-                showToast('Sicherheitsfehler: CSRF Token ungültig. Bitte Seite neu laden.', 'error');
+                showToast('Sicherheitsfehler: CSRF Token ungültig oder Zugriff verweigert.', 'error');
                 break;
             case 429: 
-                showToast('Zu viele Anfragen. Bitte warte kurz.', 'warning');
+                showToast('Zu viele Anfragen. Bitte warten Sie 10 Minuten.', 'error');
+                break;
+            case 504:
+                showToast('Gateway Timeout: Der Server hat zu lange für die Antwort gebraucht.', 'error');
                 break;
             default:
-                showToast(message || 'Ein Fehler ist aufgetreten.', 'error');
+                showToast(message || 'Ein Serverfehler (500) ist aufgetreten.', 'error');
         }
     };
 
     const showToast = (message, type = 'info') => {
         console.log(`[${type.toUpperCase()}] ${message}`);
+        // Einfaches Alert-Fallback für kritische Fehler
         if(type === 'error') alert(message);
     };
 
@@ -73,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalBody = document.getElementById('modal-body');
         const modalTitle = document.getElementById('modal-title');
         
-        modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch animate-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
+        modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
         modal.style.display = 'flex';
 
         const result = await apiCall(`refresh_site&id=${id}`);
@@ -115,12 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = document.querySelector(`tr[data-id="${id}"]`);
         if (!row) return;
 
+        // Einzel-Refresh Button spezifisch markieren
         const btn = row.querySelector('.refresh-single');
-        const icon = btn.querySelector('i');
+        const icon = btn ? btn.querySelector('i') : null;
         
-        icon.classList.add('ph-spin');
-        btn.disabled = true;
-
+        if (icon) icon.classList.add('ph-spin');
+        
         const result = await apiCall(`refresh_site&id=${id}`);
 
         if (result && result.success && result.data) {
@@ -140,8 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (row.cells[3]) row.cells[3].innerHTML = `<span class="text-muted" style="font-size: 0.9rem;">v${site.wp_version}</span>`;
         }
 
-        icon.classList.remove('ph-spin');
-        btn.disabled = false;
+        if (icon) icon.classList.remove('ph-spin');
     };
 
     window.refreshAllSites = async () => {
@@ -210,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (result && result.success) {
             viewer.innerText = result.logs || 'Keine Einträge.';
-            viewer.scrollTop = viewer.scrollHeight; // Auto-Scroll nach unten
+            viewer.scrollTop = viewer.scrollHeight;
         }
     };
 
