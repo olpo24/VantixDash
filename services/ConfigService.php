@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-
+namespace VantixDash;
 class ConfigService {
     private array $settings = [];
     private array $versionData = [];
