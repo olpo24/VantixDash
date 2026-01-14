@@ -33,7 +33,31 @@ require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
 require_once __DIR__ . '/services/RateLimiter.php';
+/**
+ * Sendet eine standardisierte Fehlerantwort und bricht ab.
+ */
+function jsonError(int $httpCode, string $message): never {
+    http_response_code($httpCode);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => false,
+        'message' => $message,
+        'code'    => $httpCode
+    ]);
+    exit;
+}
 
+/**
+ * Sendet eine standardisierte Erfolgsantwort.
+ */
+function jsonSuccess(array $data = [], string $message = ''): void {
+    header('Content-Type: application/json');
+    echo json_encode(array_merge([
+        'success' => true,
+        'message' => $message
+    ], $data));
+    exit;
+}
 /**
  * Portabler Ersatz für getallheaders()
  */
