@@ -173,4 +173,15 @@ public function clearResetToken(): void {
     $this->set('reset_expires', null);
     $this->save();
 }
+	public function getSmtpSettings(): array {
+    // Beispielhafte Rückgabe – lade diese Daten aus deiner JSON/Config
+    return [
+        'host'       => 'smtp.dein-anbieter.de',
+        'user'       => 'dein_username',
+        'pass'       => 'dein_passwort',
+        'port'       => 587,
+        'from_email' => 'noreply@deine-domain.de',
+        'from_name'  => 'VantixDash System'
+    ];
+}
 }
