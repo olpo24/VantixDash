@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
+
 namespace VantixDash;
+
+/**
+ * ConfigService - Zentrale Verwaltung der Dashboard-Einstellungen
+ */
 class ConfigService {
     private array $settings = [];
     private array $versionData = [];
@@ -48,10 +53,10 @@ class ConfigService {
      */
     public function getTimeout(string $type): int {
         $defaults = [
-            'api'           => 10,
-            'site_check'    => 15,
-            'session'       => 3600,
-            'rate_limit'    => 300
+            'api'            => 10,
+            'site_check'     => 15,
+            'session'        => 3600,
+            'rate_limit'     => 300
         ];
         
         return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
@@ -105,8 +110,8 @@ class ConfigService {
      */
     public function updateUser(string $username, string $email): bool {
         $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
-        $sanitizedEmail = filter_var($email, FILTER_SANITIZE_EMAIL);
-        $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : '';
+        $sanitizedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
+        $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : $this->settings['email'];
         return $this->save();
     }
 
@@ -141,6 +146,7 @@ class ConfigService {
      * Erzeugt einen Reset-Token-Hash und setzt das Ablaufdatum
      */
     public function setResetToken(string $token): bool {
+        // Wir speichern nur den SHA256 Hash des Tokens in der config.json
         $this->set('reset_token', hash('sha256', $token));
         $this->set('reset_expires', time() + 1800); // 30 Minuten Gültigkeit
         return $this->save();
@@ -148,6 +154,7 @@ class ConfigService {
 
     /**
      * Verifiziert den Token gegen den gespeicherten Hash
+     * Nutzt hash_equals gegen Timing-Attacks.
      */
     public function verifyResetToken(string $token): bool {
         $storedHash = $this->get('reset_token');
@@ -157,15 +164,16 @@ class ConfigService {
             return false;
         }
         
-        return hash_equals($storedHash, hash('sha256', $token));
+        // Vergleicht den Hash des übergebenen Tokens zeitkonstant mit dem gespeicherten Hash
+        return hash_equals((string)$storedHash, hash('sha256', $token));
     }
 
     /**
      * Löscht Reset-Daten nach Verwendung oder Fehler
      */
     public function clearResetToken(): void {
-        $this->set('reset_token', null);
-        $this->set('reset_expires', null);
+        unset($this->settings['reset_token']);
+        unset($this->settings['reset_expires']);
         $this->save();
     }
 
