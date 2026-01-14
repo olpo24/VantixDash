@@ -12,132 +12,115 @@ $csrf_token = $_SESSION['csrf_token'];
         </div>
     </div>
 
-    <div class="grid-two-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+    <div class="grid-two-cols" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 20px;">
         
         <div class="card">
-            <div class="card-header"><h3>Allgemeine Informationen</h3></div>
-            <form id="profile-form" style="padding: 20px;">
-                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px;">Benutzername</label>
-                    <input type="text" name="username" class="form-control" value="<?php echo htmlspecialchars($user_data['username']); ?>" required style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+            <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;"><h3>Allgemeine Informationen</h3></div>
+            <form id="profile-form" style="padding: 1.5rem;">
+                <div class="form-group">
+                    <label>Benutzername</label>
+                    <input type="text" name="username" value="<?php echo htmlspecialchars($user_data['username']); ?>" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px;">E-Mail Adresse</label>
-                    <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user_data['email']); ?>" required style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                <div class="form-group">
+                    <label>E-Mail Adresse</label>
+                    <input type="email" name="email" value="<?php echo htmlspecialchars($user_data['email']); ?>" required>
                 </div>
-                <button type="submit" class="primary-button">Änderungen speichern</button>
+                <button type="submit" class="btn-primary">Änderungen speichern</button>
             </form>
         </div>
 
         <div class="card">
-            <div class="card-header"><h3>Passwort ändern</h3></div>
-            <form id="password-form" style="padding: 20px;">
-                <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px;">Neues Passwort</label>
-                    <input type="password" name="new_password" class="form-control" placeholder="Mind. 8 Zeichen" required style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+            <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;"><h3>Passwort ändern</h3></div>
+            <form id="password-form" style="padding: 1.5rem;">
+                <div class="form-group">
+                    <label>Neues Passwort</label>
+                    <input type="password" name="new_password" placeholder="Mind. 8 Zeichen" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px;">Passwort bestätigen</label>
-                    <input type="password" name="confirm_password" class="form-control" required style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                <div class="form-group">
+                    <label>Passwort bestätigen</label>
+                    <input type="password" name="confirm_password" required>
                 </div>
-                <button type="submit" class="secondary-button">Passwort aktualisieren</button>
+                <button type="submit" class="btn-secondary">Passwort aktualisieren</button>
             </form>
         </div>
     </div>
 
     <div class="card mt-20" style="margin-top: 20px;">
-        <div class="card-header">
+        <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;">
             <h3><i class="ph ph-shield-check"></i> Zwei-Faktor-Authentisierung (2FA)</h3>
         </div>
-        <div class="card-body" id="2fa-status-container" style="padding: 20px;">
+        <div class="card-body" id="2fa-status-container" style="padding: 1.5rem;">
             <?php if ($user_data['2fa_enabled']): ?>
-                <div class="status-box active" style="background: rgba(46, 204, 113, 0.1); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #27ae60;">
+                <div class="status-box active" style="background: rgba(34, 197, 94, 0.1); padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--success);">
                     <div>
-                        <strong style="color: #27ae60; display: block;"><i class="ph ph-check-circle"></i> 2FA ist aktiv</strong>
-                        <small class="text-muted">Dein Konto wird beim Login durch einen zusätzlichen Code geschützt.</small>
+                        <strong style="color: var(--success); display: block; font-size: 1.1rem;"><i class="ph ph-check-circle"></i> 2FA ist aktiv</strong>
+                        <p class="text-muted" style="margin: 5px 0 0 0;">Dein Konto ist optimal geschützt.</p>
                     </div>
-                    <button onclick="disable2FA()" class="danger-button">Deaktivieren</button>
+                    <button onclick="disable2FAHandler()" class="btn-danger">Deaktivieren</button>
                 </div>
             <?php else: ?>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <p style="margin: 0;">Erhöhe die Sicherheit deines Kontos mit einer Authenticator-App.</p>
-                    <button onclick="start2FASetup()" class="primary-button">Jetzt einrichten</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 20px; border-radius: 12px;">
+                    <p style="margin: 0;">Erhöhe die Sicherheit deines Kontos mit einer Authenticator-App (TOTP).</p>
+                    <button onclick="start2FASetup()" class="btn-primary">Jetzt einrichten</button>
                 </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
 
-<div id="2fa-setup-modal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
-    <div class="modal-content card" style="max-width: 400px; width: 90%; background: white; border-radius: 12px; overflow: hidden;">
-        <div class="modal-header" style="padding: 15px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+<div id="2fa-setup-modal" class="modal">
+    <div class="modal-content card" style="max-width: 400px; padding: 0;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <h3 style="margin: 0;">2FA Einrichten</h3>
-            <button onclick="close2FAModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <button onclick="close2FAModal()" class="icon-btn"><i class="ph ph-x"></i></button>
         </div>
-        <div class="modal-body" style="padding: 20px; text-align: center;">
-            <p style="font-size: 0.9rem; color: var(--text-muted);">Scanne den QR-Code mit einer App wie Google Authenticator oder Authy.</p>
+        <div style="padding: 1.5rem; text-align: center;">
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Scanne den QR-Code mit Google Authenticator oder Authy.</p>
             
-            <div id="qr-loading" style="padding: 20px;"><i class="ph ph-circle-notch animate-spin"></i></div>
-            <img id="2fa-qr-img" src="" alt="QR Code" style="margin: 15px auto; display: none; border: 1px solid #eee; padding: 10px;">
+            <div id="qr-loading"><i class="ph ph-circle-notch ph-spin" style="font-size: 2rem;"></i></div>
+            <img id="2fa-qr-img" src="" alt="QR Code" style="margin: 0 auto 1.5rem auto; display: none; border: 8px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 200px;">
             
-            <p style="font-size: 0.75rem; margin-bottom: 20px;">Manueller Code: <strong id="2fa-secret-text"></strong></p>
+            <p style="font-size: 0.8rem; background: var(--bg-color); padding: 8px; border-radius: 6px;">Code: <strong id="2fa-secret-text" style="letter-spacing: 1px;"></strong></p>
             
-            <div style="text-align: left; margin-top: 15px;">
-                <label style="font-size: 0.85rem; font-weight: 600;">Bestätigungscode:</label>
-                <input type="text" id="2fa-verify-code" placeholder="000 000" maxlength="6" 
-                       style="font-size: 1.5rem; text-align: center; letter-spacing: 5px; width: 100%; padding: 10px; margin-top: 5px; border: 1px solid var(--border-color); border-radius: 6px;">
+            <div style="text-align: left; margin-top: 1.5rem;">
+                <label style="font-size: 0.85rem; font-weight: 600;">6-stelliger Bestätigungscode:</label>
+                <input type="text" id="2fa-verify-code" placeholder="000000" maxlength="6" 
+                       style="font-size: 1.5rem; text-align: center; letter-spacing: 5px; width: 100%; padding: 10px; margin-top: 5px;">
             </div>
             
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button onclick="confirm2FA()" class="primary-button" style="flex: 1;">Aktivieren</button>
-                <button onclick="close2FAModal()" class="ghost-button" style="flex: 1;">Abbrechen</button>
+            <div style="display: flex; gap: 10px; margin-top: 2rem;">
+                <button onclick="confirm2FA()" class="btn-primary" style="flex: 2;">Aktivieren</button>
+                <button onclick="close2FAModal()" class="btn-secondary" style="flex: 1;">Abbrechen</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-/**
- * Hilfsfunktion für Fetch-Requests mit CSRF Schutz
- */
-async function secureApiRequest(action, formData = new FormData()) {
-    // CSRF-Token immer anhängen, falls nicht vorhanden
-    if (!formData.has('csrf_token')) {
-        formData.append('csrf_token', '<?php echo $csrf_token; ?>');
-    }
-
-    const response = await fetch(`api.php?action=${action}`, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '<?php echo $csrf_token; ?>'
-        },
-        body: formData
-    });
-    return await response.json();
-}
-
 // 1. Profil-Daten Update
 document.getElementById('profile-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const result = await secureApiRequest('update_profile', new FormData(e.target));
-    alert(result.success ? 'Profil erfolgreich aktualisiert!' : 'Fehler: ' + result.message);
+    const result = await window.apiCall('update_profile', 'POST', new FormData(e.target));
+    if (result && result.success) {
+        showToast('Profil erfolgreich aktualisiert!', 'success');
+    }
 });
 
 // 2. Passwort Update
 document.getElementById('password-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    
     if(fd.get('new_password') !== fd.get('confirm_password')) {
-        alert('Die Passwörter stimmen nicht überein!');
+        showToast('Die Passwörter stimmen nicht überein!', 'error');
         return;
     }
-    const result = await secureApiRequest('update_password', fd);
-    alert(result.success ? 'Passwort erfolgreich geändert!' : 'Fehler: ' + result.message);
-    if(result.success) e.target.reset();
+
+    const result = await window.apiCall('update_password', 'POST', fd);
+    if (result && result.success) {
+        showToast('Passwort erfolgreich geändert!', 'success');
+        e.target.reset();
+    }
 });
 
 // 3. 2FA Setup starten
@@ -145,19 +128,14 @@ async function start2FASetup() {
     const modal = document.getElementById('2fa-setup-modal');
     modal.style.display = 'flex';
     
-    try {
-        const response = await fetch('api.php?action=setup_2fa');
-        const data = await response.json();
-        
-        if (data.success) {
-            document.getElementById('qr-loading').style.display = 'none';
-            const qrImg = document.getElementById('2fa-qr-img');
-            qrImg.src = data.qrCodeUrl;
-            qrImg.style.display = 'block';
-            document.getElementById('2fa-secret-text').innerText = data.secret;
-        }
-    } catch (e) {
-        alert('Fehler beim Laden des 2FA Setups.');
+    const result = await window.apiCall('setup_2fa');
+    if (result && result.success) {
+        document.getElementById('qr-loading').style.display = 'none';
+        const qrImg = document.getElementById('2fa-qr-img');
+        qrImg.src = result.qrCodeUrl;
+        qrImg.style.display = 'block';
+        document.getElementById('2fa-secret-text').innerText = result.secret;
+    } else {
         close2FAModal();
     }
 }
@@ -166,31 +144,34 @@ async function start2FASetup() {
 async function confirm2FA() {
     const code = document.getElementById('2fa-verify-code').value;
     if(code.length < 6) {
-        alert('Bitte gib den 6-stelligen Code ein.');
+        showToast('Bitte gib den 6-stelligen Code ein.', 'warning');
         return;
     }
     
     const fd = new FormData();
     fd.append('code', code);
     
-    const result = await secureApiRequest('verify_2fa', fd);
-    if (result.success) {
-        alert('2FA wurde erfolgreich aktiviert!');
-        location.reload();
-    } else {
-        alert(result.message || 'Ungültiger Code.');
+    const result = await window.apiCall('verify_2fa', 'POST', fd);
+    if (result && result.success) {
+        showToast('2FA erfolgreich aktiviert!', 'success');
+        setTimeout(() => location.reload(), 1000);
     }
 }
 
-// 5. 2FA Deaktivieren
-async function disable2FA() {
-    if (!confirm('Möchtest du die Zwei-Faktor-Authentisierung wirklich deaktivieren?')) return;
+// 5. 2FA Deaktivieren (mit neuem Confirm-Modal)
+async function disable2FAHandler() {
+    const confirmed = await window.showConfirm(
+        '2FA deaktivieren?',
+        'Möchtest du die Zwei-Faktor-Authentisierung wirklich deaktivieren? Dein Konto ist danach weniger sicher.',
+        { okText: 'Ja, deaktivieren', isDanger: true }
+    );
     
-    const result = await secureApiRequest('disable_2fa');
-    if (result.success) {
-        location.reload();
-    } else {
-        alert('Fehler beim Deaktivieren.');
+    if (confirmed) {
+        const result = await window.apiCall('disable_2fa', 'POST');
+        if (result && result.success) {
+            showToast('2FA wurde deaktiviert.', 'info');
+            setTimeout(() => location.reload(), 1000);
+        }
     }
 }
 
