@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace VantixDash;
 
 use Exception;
-
+use VantixDash\Exception\SiteRefreshException;
 /**
  * SiteService - Hochperformante Verwaltung von WordPress-Instanzen
  */
