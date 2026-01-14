@@ -10,7 +10,7 @@ class ConfigService {
         $basePath = dirname(__DIR__) . '/';
         $this->configPath = $basePath . 'data/config.json';
         
-        // 1. Config laden (Ohne @, mit expliziter Prüfung)
+        // 1. Config laden (Sichere Prüfung)
         if (file_exists($this->configPath)) {
             $content = file_get_contents($this->configPath);
             if ($content !== false) {
@@ -19,7 +19,7 @@ class ConfigService {
             }
         }
 
-        // 2. Version laden (include ist für Arrays in PHP völlig legitim)
+        // 2. Version laden
         $versionFile = $basePath . 'version.php';
         if (file_exists($versionFile)) {
             $this->versionData = include $versionFile;
@@ -30,10 +30,32 @@ class ConfigService {
     }
 
     /**
-     * Gibt einen Wert aus den Einstellungen zurück
+     * Holt eine Einstellung mit einem Fallback-Standardwert
      */
     public function get(string $key, $default = null) {
         return $this->settings[$key] ?? $default;
+    }
+
+    /**
+     * Setzt einen Wert im Speicher (ohne sofort zu speichern)
+     */
+    public function set(string $key, $value): void {
+        $this->settings[$key] = $value;
+    }
+
+    /**
+     * Hilfsmethode für Timeouts (zentrale Verwaltung)
+     */
+    public function getTimeout(string $type): int {
+        $defaults = [
+            'api'           => 10,
+            'site_check'    => 15,
+            'session'       => 3600,
+            'rate_limit'    => 300
+        ];
+        
+        // Sucht in config.json nach 'timeout_api' etc., sonst Standardwert
+        return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
     }
 
     /**
@@ -51,15 +73,21 @@ class ConfigService {
     }
 
     /**
-     * Speichert die aktuellen Einstellungen zurück in die config.json
+     * Speichert die aktuellen Einstellungen permanent (Atomares Schreiben)
      */
     public function save(): bool {
         $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT);
         if ($jsonContent === false) {
             return false;
         }
-        $result = file_put_contents($this->configPath, $jsonContent);
-        return $result !== false;
+
+        // Atomares Speichern: In Temp-Datei schreiben und dann umbenennen
+        $tempFile = $this->configPath . '.tmp.' . bin2hex(random_bytes(8));
+        if (file_put_contents($tempFile, $jsonContent, LOCK_EX) !== false) {
+            return rename($tempFile, $this->configPath);
+        }
+        
+        return false;
     }
 
     /**
@@ -80,7 +108,7 @@ class ConfigService {
         // Trimmen und Tags entfernen für den Usernamen
         $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
         
-        // E-Mail Validierung / Sanitizing
+        // E-Mail Validierung
         $sanitizedEmail = filter_var($email, FILTER_SANITIZE_EMAIL);
         $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : '';
         
@@ -105,39 +133,12 @@ class ConfigService {
         }
         return $this->save();
     }
-/**
- * Setzt einen Wert im Speicher (ohne sofort zu speichern)
- */
-public function set(string $key, $value): void {
-    $this->settings[$key] = $value;
-}
 
-/**
- * Aktualisiert das Cron-Secret und schreibt es sofort in die Datei
- */
-public function updateCronSecret(string $token): bool {
-    $this->set('cron_secret', $token); // Nutzt intern die set-Methode
-    return $this->save();              // Schreibt es permanent fest
-}
-	/**
- * Holt eine Einstellung mit einem Fallback-Standardwert
- */
-public function get(string $key, $default = null) {
-    return $this->settings[$key] ?? $default;
-}
-
-/**
- * Hilfsmethode für Timeouts (zentrale Verwaltung)
- */
-public function getTimeout(string $type): int {
-    $defaults = [
-        'api'           => 10,
-        'site_check'    => 15,
-        'session'       => 3600,
-        'rate_limit'    => 300
-    ];
-    
-    // Sucht in config.json, sonst nimm den Standard aus der Liste oben
-    return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
-}
+    /**
+     * Aktualisiert das Cron-Secret
+     */
+    public function updateCronSecret(string $token): bool {
+        $this->set('cron_secret', $token);
+        return $this->save();
+    }
 }
