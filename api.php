@@ -64,9 +64,9 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     jsonError(401, 'Nicht autorisiert');
 }
 
-// Session Timeout
+// Session Timeout (Nutzt jetzt getInt für Typsicherheit)
 $timeout = $configService->getTimeout('session');
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+if (isset($_SESSION['last_activity']) && (time() - (int)$_SESSION['last_activity'] > $timeout)) {
     session_unset();
     session_destroy();
     jsonError(401, 'Session abgelaufen.');
@@ -76,7 +76,7 @@ $_SESSION['last_activity'] = time();
 // CSRF-SCHUTZ bei POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token = getRequestHeader('X-CSRF-TOKEN') ?: ($_POST['csrf_token'] ?? '');
-    if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+    if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$token)) {
         jsonError(403, 'CSRF-Token ungültig.');
     }
 }
@@ -104,13 +104,10 @@ try {
                 ], 'Seite erfolgreich aktualisiert.');
 
             } catch (\VantixDash\Exception\SiteRefreshException $e) {
-                // Dies sind "erwartete" Fehler (z.B. WP-Seite offline oder API-Key falsch)
-                // Wir loggen es als Info/Warnung und geben die Nachricht ans Frontend
                 $logger->info("Refresh-Warnung für ID $id: " . $e->getMessage());
                 jsonError(422, $e->getMessage()); 
 
             } catch (Exception $e) {
-                // Dies sind kritische Systemfehler (z.B. Dateisystem-Fehler)
                 $logger->error("Kritischer Fehler bei Refresh: " . $e->getMessage());
                 jsonError(500, 'Ein interner Systemfehler ist aufgetreten.');
             }
@@ -118,7 +115,6 @@ try {
 
         case 'login_site':
             $id = $_GET['id'] ?? '';
-            // Schnelle Suche via getAll() - in Zukunft könnte man hier getSiteById() ergänzen
             $targetSite = null;
             foreach ($siteService->getAll() as $s) {
                 if ($s['id'] === $id) {
@@ -131,7 +127,7 @@ try {
                 $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
                 $options = ['http' => [
                     'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n",
-                    'timeout' => 10,
+                    'timeout' => $configService->getTimeout('api'),
                     'ignore_errors' => true
                 ]];
                 
@@ -157,7 +153,6 @@ try {
                 jsonError(400, 'Bitte Name und URL angeben.');
             }
 
-            // SiteService wirft Exceptions bei Validierungsfehlern (URL/Key)
             $newSite = $siteService->addSite($name, $url);
             if ($newSite) {
                 $logger->info("Neue Seite hinzugefügt: $name");
@@ -210,7 +205,7 @@ try {
             break;
 
         case 'verify_2fa':
-            $secret = $_SESSION['temp_2fa_secret'] ?? '';
+            $secret = (string)($_SESSION['temp_2fa_secret'] ?? '');
             $code = $_POST['code'] ?? '';
             
             if (empty($secret)) {
@@ -249,7 +244,6 @@ try {
             break;
     }
 } catch (Exception $e) {
-    // Fängt alle Exceptions (z.B. aus SiteService->addSite() oder Netzwerkfehler)
     $logger->error("API Exception: " . $e->getMessage());
     jsonError(400, $e->getMessage());
 }
