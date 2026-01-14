@@ -1,16 +1,29 @@
 <?php
 /**
- * VantixDash - Dynamischer Plugin Generator
- * Baut strukturierte Daten für Plugins und Themes in die API ein.
+ * VantixDash - Sicherer Plugin Generator
  */
 
-// Dashboard URL aus der View abgreifen
-$origin = isset($_GET['origin']) ? $_GET['origin'] : '*';
-$origin = htmlspecialchars(rtrim($origin, '/'), ENT_QUOTES, 'UTF-8');
+// 1. Origin Validierung
+$originInput = $_GET['origin'] ?? '';
+
+// Falls kein Origin angegeben oder ungültig, Zugriff verweigern
+if (empty($originInput) || !filter_var($originInput, FILTER_VALIDATE_URL)) {
+    header("HTTP/1.1 403 Forbidden");
+    die("Ungültiger oder fehlender Origin-Parameter.");
+}
+
+// Nur HTTPS erlauben und URL säubern (keine Zeilenumbrüche für Header-Injection)
+if (!preg_match('/^https:\/\/[a-zA-Z0-9.-]+$/i', rtrim($originInput, '/'))) {
+    header("HTTP/1.1 403 Forbidden");
+    die("Nur sichere HTTPS-Dashboards sind als Origin erlaubt.");
+}
+
+$origin = htmlspecialchars(rtrim($originInput, '/'), ENT_QUOTES, 'UTF-8');
 
 $pluginName = "vantixdash-child";
 $zipName = "vantixdash-child.zip";
 
+// Header für den Download
 header('Content-Type: application/zip');
 header('Content-Disposition: attachment; filename="' . $zipName . '"');
 header('Pragma: no-cache');
@@ -27,15 +40,15 @@ if ($zip->open($tempFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TR
 <?php
 /**
  * Plugin Name: VantixDash Child
- * Description: Sicherer Connector für dein VantixDash Monitoring (Zugelassen für $origin).
- * Version: 1.6.0
+ * Description: Sicherer Connector für dein VantixDash Monitoring (Exklusiv für $origin).
+ * Version: 1.6.1
  * Author: VantixDash
  */
 
 if (!defined('ABSPATH')) exit;
 
 /**
- * 1. CORS-Sicherheit
+ * 1. CORS-Sicherheit & Header-Schutz
  */
 add_action('rest_api_init', function() {
     remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
@@ -44,16 +57,18 @@ add_action('rest_api_init', function() {
         header('Access-Control-Allow-Methods: GET');
         header('Access-Control-Allow-Headers: X-Vantix-Secret, Content-Type');
         header('Access-Control-Allow-Credentials: true');
+        header('Vary: Origin');
         return \$value;
     });
 }, 15);
 
 /**
- * 2. Einstellungsseite
+ * 2. Einstellungsseite im WP-Admin
  */
 add_action('admin_menu', function() {
     add_options_page('VantixDash', 'VantixDash', 'manage_options', 'vantixdash-settings', function() {
         if (isset(\$_POST['vantix_key'])) {
+            check_admin_referer('vantix_save_key');
             update_option('vantix_api_key', sanitize_text_field(\$_POST['vantix_key']));
             echo '<div class="updated"><p>API Key erfolgreich gespeichert!</p></div>';
         }
@@ -61,23 +76,25 @@ add_action('admin_menu', function() {
         ?>
         <div class="wrap">
             <h1>VantixDash Child Verbindung</h1>
-            <p>Konfiguriert für Dashboard: <code>$origin</code></p>
-            <form method="post">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="vantix_key">API Key</label></th>
-                        <td><input name="vantix_key" type="text" id="vantix_key" value="<?php echo esc_attr(\$key); ?>" class="regular-text font-monospace"></td>
-                    </tr>
-                </table>
-                <?php submit_button('Verbindung speichern'); ?>
-            </form>
+            <div class="card" style="max-width: 600px; padding: 20px;">
+                <p>Dieses Plugin akzeptiert nur Anfragen von Ihrem Dashboard:</p>
+                <code style="display: block; padding: 10px; background: #eee;">$origin</code>
+                
+                <form method="post" style="margin-top: 20px;">
+                    <?php wp_nonce_field('vantix_save_key'); ?>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">API Key</label>
+                    <input name="vantix_key" type="text" value="<?php echo esc_attr(\$key); ?>" class="regular-text" style="width: 100%; font-family: monospace;">
+                    <p class="description">Kopieren Sie den Key aus Ihrem VantixDash hierher.</p>
+                    <?php submit_button('Verbindung speichern'); ?>
+                </form>
+            </div>
         </div>
         <?php
     });
 });
 
 /**
- * 3. Auto-Login
+ * 3. Sicherer Auto-Login via Einmal-Token
  */
 add_action('init', function() {
     if (isset(\$_GET['vantix_token'])) {
@@ -92,7 +109,7 @@ add_action('init', function() {
 });
 
 /**
- * 4. API-Schnittstellen (Status & Login)
+ * 4. REST-API Endpunkte (Status & Login)
  */
 add_action('rest_api_init', function () {
     \$auth_check = function(\$request) {
@@ -112,7 +129,6 @@ add_action('rest_api_init', function () {
             \$up_t = get_site_transient('update_themes');
             \$up_c = get_site_transient('update_core');
 
-            // CORE Updates
             \$core_updates = 0;
             if (isset(\$up_c->updates) && is_array(\$up_c->updates)) {
                 foreach(\$up_c->updates as \$u) { 
@@ -120,7 +136,6 @@ add_action('rest_api_init', function () {
                 }
             }
 
-            // PLUGINS Liste
             \$p_list = [];
             if (!empty(\$up_p->response)) {
                 foreach (\$up_p->response as \$path => \$data) {
@@ -133,7 +148,6 @@ add_action('rest_api_init', function () {
                 }
             }
 
-            // THEMES Liste
             \$t_list = [];
             if (!empty(\$up_t->response)) {
                 foreach (\$up_t->response as \$slug => \$data) {
@@ -153,8 +167,7 @@ add_action('rest_api_init', function () {
                 'plugins' => count(\$p_list),
                 'themes'  => count(\$t_list),
                 'plugin_list' => \$p_list,
-                'theme_list'  => \$t_list,
-                'ip'      => \$_SERVER['SERVER_ADDR'] ?? ''
+                'theme_list'  => \$t_list
             ];
         },
         'permission_callback' => \$auth_check
@@ -177,11 +190,9 @@ add_action('rest_api_init', function () {
 });
 EOD;
 
-    // Datei zum ZIP hinzufügen
     $zip->addFromString($pluginName . '/' . $pluginName . '.php', $pluginCode);
     $zip->close();
 
-    // ZIP an den Browser senden
     readfile($tempFilePath);
 }
 exit;
