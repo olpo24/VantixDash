@@ -12,7 +12,7 @@ require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 
 // 1. INITIALISIERUNG
 $ga = new PHPGangsta_GoogleAuthenticator();
-$config = new ConfigService($ga);
+$config = new ConfigService();
 $sitesFile = __DIR__ . '/data/sites.json';
 $siteService = new SiteService($sitesFile, $config);
 
