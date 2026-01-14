@@ -2,9 +2,13 @@
 declare(strict_types=1);
 session_start();
 
-require_once 'services/ConfigService.php';
-require_once 'services/RateLimiter.php';
-require_once 'libs/GoogleAuthenticator.php';
+/**
+ * 1. AUTOLOADER & NAMESPACES
+ */
+require_once __DIR__ . '/autoload.php';
+
+use VantixDash\ConfigService;
+use VantixDash\RateLimiter;
 
 $configService = new ConfigService();
 $rateLimiter = new RateLimiter();
@@ -25,9 +29,9 @@ if (isset($_GET['reset']) && $_GET['reset'] === '1') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // RATE LIMITING CHECK
-    if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'], 5, 300)) {
-        $error = 'Zu viele Fehlversuche. Bitte warte 5 Minuten.';
+    // RATE LIMITING CHECK: Max 5 Versuche in 5 Minuten (300 Sek)
+    if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_login', 5, 300)) {
+        $error = 'Zu viele Fehlversuche. Bitte warten Sie 5 Minuten.';
     } else {
         $action = $_POST['action'] ?? 'login';
 
@@ -39,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $storedUser = $configService->get('username');
             $storedHash = $configService->get('password_hash');
 
-            if ($user === $storedUser && password_verify($pass, $storedHash)) {
+            if ($user === $storedUser && password_verify($pass, (string)$storedHash)) {
                 // Passwort korrekt! Prüfen, ob 2FA aktiv ist
                 if ($configService->get('2fa_enabled')) {
                     $_SESSION['auth_pending'] = true; 
@@ -66,7 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $code = $_POST['2fa_code'] ?? '';
-            $ga = new PHPGangsta_GoogleAuthenticator();
+            
+            // GoogleAuthenticator ist eine externe Lib ohne Namespace
+            require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+            $ga = new \PHPGangsta_GoogleAuthenticator();
+            
             $secret = (string)$configService->get('2fa_secret', '');
 
             if ($ga->verifyCode($secret, $code, 2)) {
@@ -84,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -95,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-footer {
             margin-top: 20px;
             text-align: center;
-            border-top: 1px solid #eee;
+            border-top: 1px solid var(--border-color, #eee);
             padding-top: 15px;
         }
         .forgot-link {
@@ -105,22 +112,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: color 0.2s;
         }
         .forgot-link:hover {
-            color: #333;
+            color: var(--primary-color, #333);
             text-decoration: underline;
         }
         .alert.success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background-color: rgba(40, 167, 69, 0.1);
+            color: #28a745;
+            border: 1px solid #28a745;
             padding: 10px;
-            border-radius: 4px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .alert.error {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            padding: 10px;
+            border-radius: 8px;
             margin-bottom: 15px;
         }
     </style>
 </head>
 <body class="login-page">
     <div class="login-card card">
-        <h2>VantixDash</h2>
+        <h2 style="text-align: center; margin-bottom: 20px;">VantixDash</h2>
 
         <?php if ($error): ?>
             <div class="alert error"><?php echo htmlspecialchars($error); ?></div>
@@ -135,13 +150,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="hidden" name="action" value="login">
                 <div class="form-group">
                     <label>Benutzername</label>
-                    <input type="text" name="username" required autofocus>
+                    <input type="text" name="username" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd;" required autofocus>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="margin-top: 15px;">
                     <label>Passwort</label>
-                    <input type="password" name="password" required>
+                    <input type="password" name="password" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd;" required>
                 </div>
-                <button type="submit" class="primary-button full-width">Anmelden</button>
+                <button type="submit" class="btn-primary" style="width:100%; margin-top: 20px; padding: 12px; cursor: pointer;">Anmelden</button>
             </form>
 
             <div class="login-footer">
@@ -151,13 +166,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="action" value="verify_2fa">
-                <p>Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:</p>
+                <p style="text-align: center; margin-bottom: 20px;">Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:</p>
                 <div class="form-group">
                     <input type="text" name="2fa_code" placeholder="000000" maxlength="6" 
-                           style="font-size: 2rem; text-align: center; letter-spacing: 5px;" autofocus required>
+                           style="width: 100%; font-size: 2rem; text-align: center; letter-spacing: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd;" autofocus required>
                 </div>
-                <button type="submit" class="primary-button full-width">Verifizieren & Einloggen</button>
-                <a href="logout.php" class="text-link" style="display:block; margin-top:15px; text-align:center;">Abbrechen</a>
+                <button type="submit" class="btn-primary" style="width:100%; margin-top: 20px; padding: 12px; cursor: pointer;">Verifizieren & Einloggen</button>
+                <a href="logout.php" style="display:block; margin-top:15px; text-align:center; color: #666; text-decoration: none;">Abbrechen</a>
             </form>
         <?php endif; ?>
     </div>
