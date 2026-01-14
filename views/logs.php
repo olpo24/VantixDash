@@ -1,54 +1,41 @@
-<?php
-declare(strict_types=1);
-?>
-<div class="header-action">
-    <h1>System-Logs</h1>
-    <div class="flex-gap">
-        <button class="ghost-button" onclick="window.clearLogs()">
-            <i class="ph ph-trash"></i> Logs leeren
-        </button>
-        <a href="index.php" class="ghost-button">
-            <i class="ph ph-arrow-left"></i> Zurück
+<div class="dashboard-container">
+    <div class="header-action">
+        <div>
+            <h2><i class="ph ph-scroll"></i> System-Logs</h2>
+            <p class="text-muted">Die letzten Aktivitäten und Fehlermeldungen</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="loadLogs()" class="ghost-button">
+                <i class="ph ph-arrows-clockwise"></i> Aktualisieren
+            </button>
+            <button onclick="clearLogs()" class="ghost-button" style="color: var(--danger-color);">
+                <i class="ph ph-trash"></i> Leeren
+            </button>
         </div>
     </div>
-</div>
 
-<div class="card table-card">
-    <div id="log-content">
-        <div style="text-align:center; padding:2rem;">
-            <i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i>
-            <p>Lade Logs...</p>
-        </div>
+    <div class="card">
+        <pre id="log-viewer" style="background: #1e1e1e; color: #d4d4d4; padding: 1.5rem; border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.85rem; overflow-x: auto; white-space: pre-wrap; min-height: 400px; max-height: 600px;"></pre>
     </div>
 </div>
 
 <script>
-// Da die logs.php dynamisch geladen wird, stellen wir sicher, dass die Lade-Funktion bereitsteht
-window.loadLogs = async () => {
-    const logContent = document.getElementById('log-content');
-    const result = await apiCall('get_logs');
-    
-    if (result && result.success) {
-        if (result.data.length === 0) {
-            logContent.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-muted);">Keine Logs vorhanden.</p>';
-            return;
-        }
-
-        let html = '<table class="native-table"><thead><tr><th>Zeit</th><th>Level</th><th>Nachricht</th></tr></thead><tbody>';
-        result.data.forEach(log => {
-            const date = new Date(log.timestamp * 1000).toLocaleString('de-DE');
-            const levelClass = log.level.toLowerCase() === 'error' ? 'status-badge offline' : 'status-badge info';
-            html += `<tr>
-                <td style="white-space:nowrap; font-size:0.85rem;">${date}</td>
-                <td><span class="${levelClass}">${log.level}</span></td>
-                <td style="font-size:0.85rem;">${log.message}</td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
-        logContent.innerHTML = html;
+/**
+ * Wartet, bis die app.js die Funktionen am window-Objekt registriert hat
+ */
+function initLogs() {
+    if (typeof window.loadLogs === 'function') {
+        window.loadLogs();
+    } else {
+        // Falls app.js noch nicht bereit ist, in 50ms erneut prüfen
+        setTimeout(initLogs, 50);
     }
-};
+}
 
-// Initiales Laden
-window.loadLogs();
+// Startet den Prozess, sobald das HTML bereit ist
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLogs);
+} else {
+    initLogs();
+}
 </script>
