@@ -4,6 +4,7 @@ declare(strict_types=1);
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+// Pfade zu den PHPMailer Dateien - Stelle sicher, dass diese existieren!
 require_once __DIR__ . '/../libs/PHPMailer/Exception.php';
 require_once __DIR__ . '/../libs/PHPMailer/PHPMailer.php';
 require_once __DIR__ . '/../libs/PHPMailer/SMTP.php';
@@ -19,7 +20,9 @@ class MailService {
 
     public function send(string $to, string $subject, string $bodyHtml, string $altText = ''): bool {
         $mail = new PHPMailer(true);
-        $smtpSettings = $this->config->getSmtpSettings(); // Diese Methode fügen wir im ConfigService hinzu
+        
+        // Hier lag der Fehler: Aufruf von getSmtpConfig() statt getSmtpSettings()
+        $smtpSettings = $this->config->getSmtpConfig(); 
 
         try {
             // SMTP Einstellungen
@@ -28,8 +31,8 @@ class MailService {
             $mail->SMTPAuth   = true;
             $mail->Username   = $smtpSettings['user'];
             $mail->Password   = $smtpSettings['pass'];
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = $smtpSettings['port'];
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // Standard für Port 587
+            $mail->Port       = (int)$smtpSettings['port'];
             $mail->CharSet    = 'UTF-8';
 
             // Absender & Empfänger
@@ -45,9 +48,10 @@ class MailService {
             $mail->send();
             return true;
         } catch (Exception $e) {
-            $this->logger->error("E-Mail Versand fehlgeschlagen", [
-                'to'    => $to,
-                'error' => $mail->ErrorInfo
+            // Detaillierten Fehler ins VantixDash Log schreiben
+            $this->logger->error("SMTP Versandfehler: " . $mail->ErrorInfo, [
+                'to' => $to,
+                'host' => $smtpSettings['host']
             ]);
             return false;
         }
