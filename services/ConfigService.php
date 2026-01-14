@@ -173,8 +173,32 @@ public function clearResetToken(): void {
     $this->set('reset_expires', null);
     $this->save();
 }
+<?php
+// In services/ConfigService.php
+
+/**
+ * Hilfsmethode zum Laden der gesamten JSON
+ */
+private function loadRawConfig(): array {
+    $configFile = __DIR__ . '/../data/config.json';
+    if (!file_exists($configFile)) {
+        return [];
+    }
+    $content = file_get_contents($configFile);
+    return json_decode($content, true) ?: [];
+}
+
+/**
+ * Hilfsmethode zum Speichern der gesamten JSON
+ */
+private function saveRawConfig(array $data): bool {
+    $configFile = __DIR__ . '/../data/config.json';
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    return file_put_contents($configFile, $json) !== false;
+}
+
 public function getSmtpConfig(): array {
-    $config = $this->loadConfig(); // Deine bestehende Methode zum Laden der JSON
+    $config = $this->loadRawConfig();
     return $config['smtp'] ?? [
         'host' => '',
         'user' => '',
@@ -186,9 +210,9 @@ public function getSmtpConfig(): array {
 }
 
 public function updateSmtpConfig(array $newData): bool {
-    $config = $this->loadConfig();
+    $config = $this->loadRawConfig();
     
-    // Bestehende Daten behalten, nur 'smtp' überschreiben/erstellen
+    // Bestehende Daten behalten, nur 'smtp' überschreiben
     $config['smtp'] = [
         'host'       => (string)($newData['host'] ?? ''),
         'user'       => (string)($newData['user'] ?? ''),
@@ -198,6 +222,6 @@ public function updateSmtpConfig(array $newData): bool {
         'from_name'  => (string)($newData['from_name'] ?? 'VantixDash')
     ];
 
-    return $this->saveConfig($config); // Deine bestehende Methode zum Speichern der JSON
+    return $this->saveRawConfig($config);
 }
 }
