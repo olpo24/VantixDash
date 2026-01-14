@@ -178,4 +178,5 @@ document.querySelectorAll('.submenu-toggle').forEach(toggle => {
             caret.style.transform = submenu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
         }
     });
-});
+	});
+	});
