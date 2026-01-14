@@ -149,4 +149,28 @@ switch ($action) {
     default:
         jsonError(404, 'Unbekannte Aktion');
         break;
+		// In api.php, innerhalb des switch ($action) Blocks:
+
+case 'test_smtp':
+    // 1. Initialisierung (falls noch nicht geschehen)
+    $mailService = new MailService($configService, $logger);
+    
+    // 2. Ziel-Email holen
+    $targetEmail = $_POST['email'] ?? '';
+    if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+        jsonError(400, 'Ungültige Empfänger-E-Mail.');
+    }
+
+    // 3. Test-Mail senden
+    $subject = "VantixDash - SMTP Test";
+    $html = "<h1>Test erfolgreich!</h1><p>Wenn du diese E-Mail liest, sind deine SMTP-Einstellungen korrekt konfiguriert.</p><p>Zeitstempel: " . date('Y-m-d H:i:s') . "</p>";
+    $alt = "SMTP Test erfolgreich! Zeitstempel: " . date('Y-m-d H:i:s');
+
+    if ($mailService->send($targetEmail, $subject, $html, $alt)) {
+        jsonSuccess([], 'Test-E-Mail erfolgreich versendet.');
+    } else {
+        // Der MailService loggt den detaillierten PHPMailer-Fehler bereits
+        jsonError(500, 'Versand fehlgeschlagen. Prüfe die System-Logs für Details.');
+    }
+    break;
 }
