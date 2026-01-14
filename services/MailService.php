@@ -28,15 +28,11 @@ class MailService {
             // SMTP Einstellungen
             $mail->isSMTP();
 			$mail->Timeout = 10;
-			$mail->SMTPDebug = 2; // Aktiviere Debug-Ausgabe
-$mail->Debugoutput = function($str, $level) {
-    file_put_contents(__DIR__ . '/../data/smtp_debug.log', $str . PHP_EOL, FILE_APPEND);
-};
             $mail->Host       = $smtpSettings['host'];
             $mail->SMTPAuth   = true;
             $mail->Username   = $smtpSettings['user'];
             $mail->Password   = $smtpSettings['pass'];
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // Standard für Port 587
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Standard für Port 587
             $mail->Port       = (int)$smtpSettings['port'];
             $mail->CharSet    = 'UTF-8';
 
