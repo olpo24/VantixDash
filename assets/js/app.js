@@ -1,6 +1,6 @@
 /**
  * VantixDash - Main Application JS
- * Fokus: Security, Live-Updates & Request-Control (Anti-Spam)
+ * Fokus: Security, UI-Modals & Live-Updates
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -85,17 +85,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * DASHBOARD ACTIONS MIT DEBOUNCING / LOCKING
+     * DASHBOARD ACTIONS
      */
-
     window.refreshSite = async (id, isBatch = false) => {
-        // ANTI-SPAM: Wenn diese ID gerade verarbeitet wird, brich ab.
         if (busySites.has(id)) return;
         busySites.add(id);
 
         const row = getRowById(id);
-        const btn = row?.querySelector('.refresh-single');
-        if (btn) btn.classList.add('ph-spin');
+        const btnIcon = row?.querySelector('.refresh-single i');
+        if (btnIcon) btnIcon.classList.add('ph-spin');
 
         const result = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`, 'GET', null, isBatch);
         
@@ -119,16 +117,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        if (btn) btn.classList.remove('ph-spin');
-        
-        // LOCK entfernen nach kurzem Cooldown (1 Sekunde), um "Klick-Gewitter" zu vermeiden
+        if (btnIcon) btnIcon.classList.remove('ph-spin');
         setTimeout(() => busySites.delete(id), 1000); 
         return result;
     };
 
     window.refreshAllSites = async () => {
         const icon = document.getElementById('refresh-all-icon');
-        if (icon?.classList.contains('ph-spin')) return; // Bereits am Laufen
+        if (icon?.classList.contains('ph-spin')) return;
 
         const rows = document.querySelectorAll('tr[data-id]');
         icon?.classList.add('ph-spin');
@@ -139,44 +135,98 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         icon?.classList.remove('ph-spin');
-        showToast('Prüfung abgeschlossen.', 'success');
+        showToast('Alle Seiten geprüft.', 'success');
     };
 
-    // Weitere Standard-Funktionen
+    /**
+     * MODAL & DETAILS
+     */
     window.openDetails = async (id) => {
         const modal = document.getElementById('details-modal');
         const modalBody = document.getElementById('modal-body');
         if (!modal) return;
-        modalBody.innerHTML = '<i class="ph ph-circle-notch ph-spin"></i>';
+
+        modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
         modal.style.display = 'flex';
+
         const res = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
         if (res?.success) {
-            document.getElementById('modal-title').innerText = res.data.name;
-            modalBody.innerHTML = `<div class="info-card">WP: ${escapeHTML(res.data.wp_version)} | PHP: ${escapeHTML(res.data.php)}</div>`;
+            const site = res.data;
+            document.getElementById('modal-title').innerText = site.name;
+
+            let html = `
+                <div class="modal-detail-wrapper">
+                    <div class="detail-meta-header">
+                        <span><strong>WP:</strong> ${escapeHTML(site.wp_version)}</span>
+                        <span><strong>PHP:</strong> ${escapeHTML(site.php || 'N/A')}</span>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <section>
+                            <h4><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>
+                            ${renderUpdateList(site.details?.plugins || [])}
+                        </section>
+                        <section>
+                            <h4><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>
+                            ${renderUpdateList(site.details?.themes || [])}
+                        </section>
+                    </div>
+                </div>`;
+            modalBody.innerHTML = html;
+        } else {
+            modalBody.innerHTML = '<p class="alert alert-error">Details konnten nicht geladen werden.</p>';
         }
     };
 
-    window.closeModal = () => document.getElementById('details-modal').style.display = 'none';
-// Sidebar Toggle (Auf/Zuklappen)
-const sidebarToggle = document.getElementById('sidebar-toggle');
-const sidebar = document.getElementById('sidebar');
-if (sidebarToggle) {
-    sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-    });
-}
+    const renderUpdateList = (items) => {
+        if (!items || items.length === 0) return '<p class="text-muted small">Alles aktuell.</p>';
+        let list = '<ul class="modal-update-list">';
+        items.forEach(item => {
+            list += `
+                <li>
+                    <span class="item-name">${escapeHTML(item.name)}</span>
+                    <span class="item-version">${escapeHTML(item.version)} <i class="ph ph-arrow-right"></i> <strong>${escapeHTML(item.new_version)}</strong></span>
+                </li>`;
+        });
+        return list + '</ul>';
+    };
 
-// Submenu Toggle
-document.querySelectorAll('.submenu-toggle').forEach(toggle => {
-    toggle.addEventListener('click', function(e) {
-        e.preventDefault();
-        const submenu = this.nextElementSibling;
-        const caret = this.querySelector('.caret-icon');
-        
-        submenu.classList.toggle('show');
-        if (caret) {
-            caret.style.transform = submenu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
+    window.closeModal = () => {
+        document.getElementById('details-modal').style.display = 'none';
+    };
+
+    /**
+     * UI NAVIGATION
+     */
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            // Für Mobile Support
+            sidebar.classList.toggle('show-mobile');
+        });
+    }
+
+    document.querySelectorAll('.submenu-toggle').forEach(toggle => {
+        toggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            const submenu = this.nextElementSibling;
+            const caret = this.querySelector('.caret-icon');
+            
+            if (submenu) {
+                submenu.classList.toggle('show');
+                if (caret) {
+                    caret.style.transform = submenu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+            }
+        });
     });
-	});
-	});
+
+    // Schließen des Modals bei Klick auf das Overlay
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('details-modal');
+        if (e.target === modal) closeModal();
+    });
+});
