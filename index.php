@@ -76,7 +76,8 @@ $allowedViews = [
     'settings_general' => 'views/settings_general.php',
     'settings_profile' => 'views/settings_profile.php',
     'profile'          => 'views/profile.php',
-    'logs'             => 'views/logs.php' // NEU: Log-Viewer
+    'logs'             => 'views/logs.php', // NEU: Log-Viewer
+	'settings_smtp'             => 'views/settings_smtp.php' // NEU: Log-Viewer
 ];
 
 $viewPath = $allowedViews[$view] ?? 'views/dashboard.php';
@@ -106,6 +107,7 @@ $safeView = htmlspecialchars($view, ENT_QUOTES, 'UTF-8');
     <a href="index.php?view=settings_general" class="<?php echo $safeView === 'settings_general' ? 'active' : ''; ?>">Einstellungen</a>
     <a href="index.php?view=logs" class="<?php echo $safeView === 'logs' ? 'active' : ''; ?>">Logs</a>
     <a href="index.php?view=profile" class="<?php echo $safeView === 'profile' ? 'active' : ''; ?>">Profil</a>
+	<a href="index.php?view=settings_smtp" class="<?php echo $safeView === 'settings_smtp' ? 'active' : ''; ?>">SMTP</a>
     <a href="logout.php" class="action-link"><i class="ph ph-sign-out"></i> Abmelden</a>
 </nav>
 
