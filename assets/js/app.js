@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
      * TOAST NOTIFICATION SYSTEM
      */
     const showToast = (message, type = 'info', duration = 4000) => {
-        // Container erstellen, falls nicht vorhanden
         let container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
@@ -19,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         
-        // Icon basierend auf Typ wählen (Phosphor Icons)
         const icons = {
             info: 'ph-info',
             success: 'ph-check-circle',
@@ -34,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.appendChild(toast);
 
-        // Entfernen nach Zeit oder Klick
         const removeToast = () => {
             toast.classList.add('fade-out');
             setTimeout(() => toast.remove(), 300);
@@ -42,6 +39,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         toast.onclick = removeToast;
         setTimeout(removeToast, duration);
+    };
+
+    /**
+     * GLOBAL CONFIRM SYSTEM (Promise-basiert)
+     */
+    window.showConfirm = (title, message, options = {}) => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirm-modal');
+            if (!modal) {
+                // Fallback falls HTML fehlt
+                resolve(confirm(message));
+                return;
+            }
+
+            const btnOk = document.getElementById('confirm-ok');
+            const btnCancel = document.getElementById('confirm-cancel');
+            
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-message').innerText = message;
+            
+            // UI-Anpassungen
+            btnOk.innerText = options.okText || 'Bestätigen';
+            btnOk.className = options.isDanger ? 'btn-danger' : 'btn-primary'; // Nutzt btn-danger falls definiert
+            
+            modal.style.display = 'flex';
+
+            const handleResponse = (result) => {
+                modal.style.display = 'none';
+                btnOk.onclick = null;
+                btnCancel.onclick = null;
+                resolve(result);
+            };
+
+            btnOk.onclick = () => handleResponse(true);
+            btnCancel.onclick = () => handleResponse(false);
+        });
     };
 
     /**
@@ -132,6 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openDetails = async (id) => {
         const modal = document.getElementById('details-modal');
         const modalBody = document.getElementById('modal-body');
+        if (!modal || !modalBody) return;
+
         modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
         modal.style.display = 'flex';
 
@@ -146,27 +181,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="card" style="padding:10px; background:var(--bg-color);"><strong>PHP:</strong> ${site.php}</div>
                 </div>
             `;
-            // ... (Rest der HTML Generierung wie gehabt)
+            // Ergänze hier bei Bedarf weitere Details aus site.data
             modalBody.innerHTML = html;
         }
     };
 
-    window.closeModal = () => document.getElementById('details-modal').style.display = 'none';
+    window.closeModal = () => {
+        const detailsModal = document.getElementById('details-modal');
+        const confirmModal = document.getElementById('confirm-modal');
+        if (detailsModal) detailsModal.style.display = 'none';
+        if (confirmModal) confirmModal.style.display = 'none';
+    };
 
     window.refreshSite = async (id) => {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (!row) return;
         const result = await apiCall(`refresh_site&id=${id}`);
         if (result && result.success) {
             showToast(`${result.data.name} erfolgreich aktualisiert.`, 'success');
-            // DOM Update Logik...
+            // Hier könnte man die Zeile im DOM gezielt updaten
         }
     };
 
     window.confirm2FA = async () => {
-        const code = document.getElementById('2fa-verify-code').value;
+        const codeInput = document.getElementById('2fa-verify-code');
+        if (!codeInput) return;
+        
         const formData = new FormData();
-        formData.append('code', code);
+        formData.append('code', codeInput.value);
         const result = await apiCall('verify_2fa', 'POST', formData);
         if (result && result.success) {
             showToast('2FA erfolgreich aktiviert!', 'success');
@@ -175,22 +215,42 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.disable2FA = async () => {
-        if (!confirm('2FA wirklich deaktivieren?')) return; // Confirm bleibt für kritische Löschungen oft besser
-        const result = await apiCall('disable_2fa');
-        if (result && result.success) {
-            showToast('2FA deaktiviert.', 'info');
-            location.reload();
+        const confirmed = await showConfirm(
+            'Sicherheit reduzieren?', 
+            'Möchtest du die Zwei-Faktor-Authentifizierung wirklich deaktivieren?',
+            { okText: 'Ja, deaktivieren', isDanger: true }
+        );
+
+        if (confirmed) {
+            const result = await apiCall('disable_2fa');
+            if (result && result.success) {
+                showToast('2FA deaktiviert.', 'info');
+                location.reload();
+            }
         }
     };
 
     window.clearLogs = async () => {
-        if (!confirm('Alle Logs löschen?')) return;
-        const result = await apiCall('clear_logs');
-        if (result && result.success) {
-            showToast('Logs wurden geleert.', 'success');
-            window.loadLogs();
+        const confirmed = await showConfirm(
+            'Logs löschen', 
+            'Sollen wirklich alle System-Logs unwiderruflich gelöscht werden?',
+            { okText: 'Alles löschen', isDanger: true }
+        );
+
+        if (confirmed) {
+            const result = await apiCall('clear_logs');
+            if (result && result.success) {
+                showToast('Logs wurden geleert.', 'success');
+                // Falls eine loadLogs Funktion existiert (in logs.php View)
+                if (typeof window.loadLogs === 'function') window.loadLogs();
+            }
         }
     };
 
-    window.onclick = (e) => { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; };
+    // Globaler Klick-Handler für Modals (Schließen bei Klick außerhalb)
+    window.onclick = (e) => { 
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none'; 
+        }
+    };
 });
