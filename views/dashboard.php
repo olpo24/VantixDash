@@ -100,13 +100,3 @@ $sites = $siteService->getAll();
         </table>
     </div>
 </div>
-
-<div id="details-modal" class="modal-overlay" style="display:none;">
-    <div class="modal-content card">
-        <div class="modal-header">
-            <h3 id="modal-title">Details</h3>
-            <button onclick="closeModal()" class="close-btn">&times;</button>
-        </div>
-        <div id="modal-body"></div>
-    </div>
-</div>
