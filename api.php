@@ -1,12 +1,25 @@
 <?php
 /**
- * api.php - Zentraler AJAX-Endpunkt für VantixDash
+ * api.php - Zentraler AJAX-Endpunkt für VantixDash (PSR-4 Version)
  */
 declare(strict_types=1);
 
 session_start();
 
-// 1. HELPER FUNKTIONEN
+/**
+ * 1. AUTOLOADER & NAMESPACES
+ */
+require_once __DIR__ . '/autoload.php';
+
+use VantixDash\Logger;
+use VantixDash\ConfigService;
+use VantixDash\SiteService;
+use VantixDash\MailService;
+use VantixDash\RateLimiter;
+
+/**
+ * 2. HELPER FUNKTIONEN
+ */
 function jsonError(int $httpCode, string $message): never {
     http_response_code($httpCode);
     header('Content-Type: application/json');
@@ -25,31 +38,25 @@ function getRequestHeader(string $name): string {
     return $_SERVER['HTTP_' . $name] ?? '';
 }
 
-// 2. SERVICES & LIBS LADEN
-require_once __DIR__ . '/services/Logger.php';
-require_once __DIR__ . '/services/ConfigService.php';
-require_once __DIR__ . '/services/SiteService.php';
-require_once __DIR__ . '/libs/GoogleAuthenticator.php';
-require_once __DIR__ . '/services/MailService.php';
-
-// Falls RateLimiter vorhanden ist, laden, sonst Dummy-Klasse für Fehlersicherheit
-if (file_exists(__DIR__ . '/services/RateLimiter.php')) {
-    require_once __DIR__ . '/services/RateLimiter.php';
-}
-
-// 3. INITIALISIERUNG
+/**
+ * 3. INITIALISIERUNG
+ */
 $logger = new Logger();
 $configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
-$ga = new PHPGangsta_GoogleAuthenticator();
+$rateLimiter = new RateLimiter(); // Nutzt jetzt den Autoloader
 
-// 4. GLOBALER SCHUTZ
-// Rate Limiting (nur wenn Klasse vorhanden)
-if (class_exists('RateLimiter')) {
-    $rateLimiter = new RateLimiter($logger);
-    if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'], 30, 60)) {
-        jsonError(429, 'Zu viele Anfragen. Bitte kurz warten.');
-    }
+// Externe Libs (nicht PSR-4 konform) weiterhin manuell laden
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+$ga = new \PHPGangsta_GoogleAuthenticator();
+
+/**
+ * 4. GLOBALER SCHUTZ
+ */
+
+// Rate Limiting (Global für API)
+if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_api', 60, 60)) {
+    jsonError(429, 'Zu viele Anfragen. Bitte kurz warten.');
 }
 
 // Authentifizierung
@@ -74,7 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 5. ROUTING
+/**
+ * 5. ROUTING
+ */
 $action = $_GET['action'] ?? '';
 
 switch ($action) {
@@ -147,29 +156,26 @@ switch ($action) {
         }
         break;
 
+    case 'test_smtp':
+        $mailService = new MailService($configService, $logger);
+        $targetEmail = $_POST['email'] ?? '';
+        
+        if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+            jsonError(400, 'Ungültige Empfänger-E-Mail.');
+        }
+
+        $subject = "VantixDash - SMTP Test";
+        $html = "<h1>Test erfolgreich!</h1><p>Deine SMTP-Einstellungen in VantixDash funktionieren korrekt.</p>";
+        $alt = "SMTP Test erfolgreich!";
+
+        if ($mailService->send($targetEmail, $subject, $html, $alt)) {
+            jsonSuccess([], 'Test-E-Mail versendet.');
+        } else {
+            jsonError(500, 'Versand fehlgeschlagen. Siehe Logs.');
+        }
+        break;
+
     default:
         jsonError(404, 'Unbekannte Aktion');
         break;
-		// In api.php, innerhalb des switch ($action) Blocks:
-
-case 'test_smtp':
-    // Der MailService benötigt Config und Logger
-    $mailService = new MailService($configService, $logger);
-    
-    $targetEmail = $_POST['email'] ?? '';
-    if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Ungültige Empfänger-E-Mail.']);
-        exit;
-    }
-
-    $subject = "VantixDash - SMTP Test";
-    $html = "<h1>Test erfolgreich!</h1><p>Deine SMTP-Einstellungen in VantixDash funktionieren korrekt.</p>";
-    $alt = "SMTP Test erfolgreich!";
-
-    if ($mailService->send($targetEmail, $subject, $html, $alt)) {
-        echo json_encode(['success' => true, 'message' => 'Test-E-Mail versendet.']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Versand fehlgeschlagen. Siehe Logs.']);
-    }
-    exit;
 }
