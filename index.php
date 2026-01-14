@@ -132,15 +132,15 @@ $safeView = htmlspecialchars($view, ENT_QUOTES, 'UTF-8');
     ?>
 </main>
 <div id="confirm-modal" class="modal">
-    <div class="modal-content card" style="max-width: 400px; text-align: center;">
-        <div id="confirm-icon" style="font-size: 3rem; margin-bottom: 15px; color: var(--primary-color);">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 1rem; color: var(--primary-color);">
             <i class="ph ph-question"></i>
         </div>
-        <h3 id="confirm-title">Bist du sicher?</h3>
-        <p id="confirm-message" style="margin-bottom: 25px; color: var(--text-muted);"></p>
+        <h3 id="confirm-title" style="margin-top:0;">Bestätigen</h3>
+        <p id="confirm-message" style="color: var(--text-muted); margin-bottom: 2rem;"></p>
         <div style="display: flex; gap: 10px; justify-content: center;">
             <button id="confirm-cancel" class="btn-secondary">Abbrechen</button>
-            <button id="confirm-ok" class="btn-primary" style="background: #e74c3c; border-color: #e74c3c;">Ja, ausführen</button>
+            <button id="confirm-ok" class="btn-primary">Bestätigen</button>
         </div>
     </div>
 </div>
