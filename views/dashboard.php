@@ -46,9 +46,9 @@ $sites = $siteService->getAll();
                         $themes  = (int)($site['updates']['themes'] ?? 0);
                         $core    = (int)($site['updates']['core'] ?? 0);
                     ?>
-                        <tr data-id="<?php echo htmlspecialchars($id); ?>">
+                        <tr data-id="<?php echo htmlspecialchars($id, ENT_QUOTES, 'UTF-8'); ?>">
                             <td style="text-align: center;">
-                                <span class="status-indicator <?php echo htmlspecialchars($status); ?>" 
+                                <span class="status-indicator status-badge <?php echo htmlspecialchars($status); ?>" 
                                       title="Status: <?php echo htmlspecialchars($status); ?>"
                                       style="margin: 0 auto;"></span>
                             </td>
@@ -65,30 +65,30 @@ $sites = $siteService->getAll();
                             <td>
                                 <div class="update-overview" style="display: flex; gap: 6px;">
                                     <div class="update-pill mini <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core">
-                                        <i class="ph ph-cpu"></i> <span><?php echo $core; ?></span>
+                                        <i class="ph ph-cpu"></i> <span class="update-count-core"><?php echo $core; ?></span>
                                     </div>
                                     <div class="update-pill mini <?php echo ($plugins > 0) ? 'has-updates' : ''; ?>" title="Plugins">
-                                        <i class="ph ph-plug"></i> <span><?php echo $plugins; ?></span>
+                                        <i class="ph ph-plug"></i> <span class="update-count-plugins"><?php echo $plugins; ?></span>
                                     </div>
                                     <div class="update-pill mini <?php echo ($themes > 0) ? 'has-updates' : ''; ?>" title="Themes">
-                                        <i class="ph ph-palette"></i> <span><?php echo $themes; ?></span>
+                                        <i class="ph ph-palette"></i> <span class="update-count-themes"><?php echo $themes; ?></span>
                                     </div>
                                 </div>
                             </td>
                             <td>
-                                <span class="text-muted" style="font-size: 0.9rem;">
+                                <span class="text-muted wp-version" style="font-size: 0.9rem;">
                                     v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0', ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </td>
                             <td style="text-align: right;">
                                 <div class="action-buttons" style="display: flex; justify-content: flex-end; gap: 8px;">
-                                    <button class="icon-btn" onclick="openDetails('<?php echo $id; ?>')" title="Details">
+                                    <button class="icon-btn" onclick="openDetails('<?php echo addslashes($id); ?>')" title="Details">
                                         <i class="ph ph-magnifying-glass"></i>
                                     </button>
-                                    <button class="icon-btn" onclick="loginToSite('<?php echo $id; ?>')" title="Auto-Login">
+                                    <button class="icon-btn" onclick="loginToSite('<?php echo addslashes($id); ?>')" title="Auto-Login">
                                         <i class="ph ph-sign-in"></i>
                                     </button>
-                                    <button class="icon-btn refresh-single" onclick="refreshSite('<?php echo $id; ?>')" title="Prüfen">
+                                    <button class="icon-btn refresh-single" onclick="refreshSite('<?php echo addslashes($id); ?>')" title="Prüfen">
                                         <i class="ph ph-arrows-clockwise"></i>
                                     </button>
                                 </div>
@@ -107,7 +107,6 @@ $sites = $siteService->getAll();
             <h3 id="modal-title">Details</h3>
             <button onclick="closeModal()" class="close-btn">&times;</button>
         </div>
-        <div id="modal-body">
-            </div>
+        <div id="modal-body"></div>
     </div>
 </div>
