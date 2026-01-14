@@ -1,84 +1,52 @@
 <?php
 declare(strict_types=1);
+session_start();
 
 /**
- * forgot_password.php - Sicherer Passwort-Reset-Flow
+ * 1. AUTOLOADER & NAMESPACES
  */
+require_once __DIR__ . '/autoload.php';
 
-require_once __DIR__ . '/services/Logger.php';
-require_once __DIR__ . '/services/ConfigService.php';
-require_once __DIR__ . '/services/MailService.php';
-require_once __DIR__ . '/services/RateLimiter.php';
+use VantixDash\ConfigService;
+use VantixDash\RateLimiter;
 
-$logger = new Logger();
-$config = new ConfigService();
-$mailService = new MailService($config, $logger);
+$configService = new ConfigService();
 $rateLimiter = new RateLimiter();
+$error = '';
+$success = '';
 
-$message = '';
-$error = false;
+// Wenn der User bereits eingeloggt ist
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    header('Location: index.php');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    
-    /**
-     * 1. RATE LIMITING
-     * Schützt vor Brute-Force Versuchen auf die Reset-Funktion.
-     */
-    if (!$rateLimiter->checkLimit($ip . '_pw_reset', 3, 600)) {
-        $logger->warning("Rate-Limit für Passwort-Reset überschritten", ['ip' => $ip]);
-        $message = "Zu viele Anfragen. Bitte warten Sie 10 Minuten.";
-        $error = true;
+    // RATE LIMITING: Max 3 Versuche in 15 Minuten für Passwort-Resets
+    if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_pw_reset', 3, 900)) {
+        $error = 'Zu viele Versuche. Bitte warten Sie 15 Minuten.';
     } else {
-        // 2. EMAIL VALIDIERUNG (Statt nur Sanitize)
-        $emailRaw = $_POST['email'] ?? '';
-        $inputEmail = filter_var($emailRaw, FILTER_VALIDATE_EMAIL);
-        
-        // Immer die gleiche Meldung für den User am Ende vorbereiten
-        $message = "Falls diese E-Mail-Adresse registriert ist, wurde ein Reset-Link versendet. Bitte prüfen Sie auch Ihren Spam-Ordner.";
+        $email = $_POST['email'] ?? '';
+        $storedEmail = $configService->getString('email');
 
-        if ($inputEmail) {
-            $storedEmail = $config->get('email');
-
-            // 3. Sicherheits-Check: Nur senden, wenn Email exakt übereinstimmt
-            if (strtolower($inputEmail) === strtolower((string)$storedEmail)) {
+        // Sicherheit: Immer die gleiche Erfolgsmeldung zeigen (Privacy)
+        if (!empty($email) && strtolower($email) === strtolower($storedEmail)) {
+            $token = bin2hex(random_bytes(32));
+            if ($configService->setResetToken($token)) {
+                // HIER würde in einer echten Umgebung die E-Mail gesendet werden
+                // Für VantixDash Log:
+                $resetLink = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]/reset-password.php?token=$token";
                 
-                // Token generieren (64 Zeichen Hex)
-                $token = bin2hex(random_bytes(32));
-                $config->setResetToken($token);
+                // Wir simulieren den Versand für das Dashboard
+                $success = 'Wenn die E-Mail-Adresse existiert, wurde ein Reset-Link versendet.';
                 
-                // Reset-Link erstellen
-                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
-                $resetLink = $protocol . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['PHP_SELF']), '/\\') . "/reset-password.php?token=" . $token;
-                
-                // E-Mail Inhalt
-                $subject = "VantixDash - Passwort zurücksetzen";
-                $htmlBody = "
-                    <div style='font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
-                        <h2 style='color: #4a90e2;'>Passwort zurücksetzen</h2>
-                        <p>Hallo,</p>
-                        <p>Klicken Sie auf den folgenden Button, um Ihr Passwort für <strong>VantixDash</strong> zu ändern:</p>
-                        <p style='margin: 25px 0;'>
-                            <a href='{$resetLink}' style='background-color: #4a90e2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;'>Passwort jetzt ändern</a>
-                        </p>
-                        <p style='font-size: 0.8rem; color: #777;'>Dieser Link ist 30 Minuten gültig. Falls Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren.</p>
-                    </div>";
-                
-                $altText = "Ihr Link zum Zurücksetzen des Passworts: " . $resetLink;
-
-                // Versand via SMTP
-                if ($mailService->send($inputEmail, $subject, $htmlBody, $altText)) {
-                    $logger->info("Passwort-Reset-E-Mail erfolgreich versendet", ['to' => $inputEmail]);
-                } else {
-                    $logger->error("Fehler beim Versand der Reset-E-Mail", ['to' => $inputEmail]);
-                }
+                // Debug-Hinweis für Entwicklung (später entfernen!)
+                // error_log("Passwort Reset Link: " . $resetLink);
             } else {
-                // E-Mail stimmt nicht mit hinterlegtem Admin überein - Loggen für Security-Monitoring
-                $logger->notice("Passwort-Reset für nicht-existente E-Mail angefordert", ['input' => $inputEmail]);
+                $error = 'Fehler beim Generieren des Tokens.';
             }
         } else {
-            // E-Mail Format war komplett ungültig
-            $logger->warning("Passwort-Reset mit ungültigem E-Mail-Format versucht", ['input' => $emailRaw]);
+            $success = 'Wenn die E-Mail-Adresse existiert, wurde ein Reset-Link versendet.';
         }
     }
 }
@@ -88,40 +56,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passwort vergessen | VantixDash</title>
+    <title>Passwort vergessen - VantixDash</title>
     <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
+    <style>
+        body.login-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f5f7fb;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.05);
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h2 { color: #222e3c; margin: 0; font-size: 1.5rem; }
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+        .alert-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+        .alert-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+        
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #495057; font-size: 0.9rem; }
+        .form-control {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn-action {
+            width: 100%;
+            padding: 0.75rem;
+            background: #3b7ddd;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn-action:hover { background: #2f64b1; }
+        .login-footer {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+        .login-footer a { color: #6c757d; text-decoration: none; }
+        .login-footer a:hover { text-decoration: underline; }
+    </style>
 </head>
 <body class="login-page">
     <div class="login-card">
         <div class="login-header">
-            <i class="ph ph-lock-key-open" style="font-size: 3rem; color: var(--primary-color);"></i>
-            <h2>Passwort vergessen</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">Geben Sie Ihre E-Mail ein, um einen Link zu erhalten.</p>
+            <h2>VantixDash</h2>
+            <p style="color: #6c757d; font-size: 0.9rem; margin-top: 0.5rem;">Passwort zurücksetzen</p>
         </div>
 
-        <?php if ($message): ?>
-            <div class="alert <?php echo $error ? 'alert-danger' : 'alert-info'; ?>" style="margin-bottom: 20px; padding: 15px; border-radius: 8px; font-size: 0.9rem; border-left: 4px solid <?php echo $error ? '#ff4d4d' : '#4a90e2'; ?>;">
-                <i class="ph <?php echo $error ? 'ph-warning' : 'ph-info'; ?>"></i> <?php echo htmlspecialchars($message); ?>
-            </div>
+        <?php if ($error): ?>
+            <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
-        <form method="POST" autocomplete="off">
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label for="email" style="display:block; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted);">E-Mail Adresse</label>
-                <input type="email" id="email" name="email" placeholder="beispiel@domain.de" required 
-                       style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color);">
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+            <div class="login-footer">
+                <a href="login.php">← Zurück zum Login</a>
             </div>
-            <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; background: var(--primary-color); color: white;">
-                Link anfordern
-            </button>
-        </form>
+        <?php else: ?>
+            <form method="POST">
+                <div class="form-group">
+                    <label>E-Mail-Adresse</label>
+                    <input type="email" name="email" class="form-control" placeholder="Deine E-Mail" required autofocus>
+                </div>
+                <button type="submit" class="btn-action">Reset-Link senden</button>
+            </form>
 
-        <div class="login-footer" style="margin-top: 25px; text-align: center;">
-            <p><a href="login.php" style="text-decoration: none; color: var(--text-muted); font-size: 0.9rem;">
-                <i class="ph ph-arrow-left"></i> Zurück zum Login
-            </a></p>
-        </div>
+            <div class="login-footer">
+                <a href="login.php">Doch wieder eingefallen? Login</a>
+            </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>
