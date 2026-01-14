@@ -1,7 +1,7 @@
 <?php
 /**
  * views/dashboard.php
- * Tabellenansicht für das Dashboard (basierend auf manage_sites Struktur)
+ * Zentrales Dashboard mit Live-Status und Update-Übersicht
  */
 
 if (!isset($siteService)) exit;
@@ -23,7 +23,7 @@ $sites = $siteService->getAll();
         <table class="native-table">
             <thead>
                 <tr>
-                    <th style="width: 50px;">Status</th>
+                    <th style="width: 50px; text-align: center;">Status</th>
                     <th>Seite</th>
                     <th>Updates</th>
                     <th>WordPress</th>
@@ -39,31 +39,30 @@ $sites = $siteService->getAll();
                         </td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($sites as $site): ?>
-                        <?php 
-                            $id = $site['id'];
-                            $status = $site['status'] ?? 'offline';
-                            $plugins = (int)($site['updates']['plugins'] ?? 0);
-                            $themes  = (int)($site['updates']['themes'] ?? 0);
-                            $core    = (int)($site['updates']['core'] ?? 0);
-                        ?>
-                        <tr data-id="<?php echo $id; ?>">
+                    <?php foreach ($sites as $site): 
+                        $id = $site['id'];
+                        $status = $site['status'] ?? 'offline';
+                        $plugins = (int)($site['updates']['plugins'] ?? 0);
+                        $themes  = (int)($site['updates']['themes'] ?? 0);
+                        $core    = (int)($site['updates']['core'] ?? 0);
+                    ?>
+                        <tr data-id="<?php echo htmlspecialchars($id); ?>">
                             <td style="text-align: center;">
-                                <span class="status-indicator <?php echo $status; ?>" 
-                                      title="Status: <?php echo $status; ?>"
+                                <span class="status-indicator <?php echo htmlspecialchars($status); ?>" 
+                                      title="Status: <?php echo htmlspecialchars($status); ?>"
                                       style="margin: 0 auto;"></span>
                             </td>
-                                      <td>
-    <div class="site-info">
-        <span class="site-name" style="font-weight: 600;">
-            <?php echo htmlspecialchars($site['name'], ENT_QUOTES, 'UTF-8'); ?>
-        </span>
-        <small class="site-url" style="display: block; color: var(--text-muted); font-size: 0.75rem;">
-            <?php echo htmlspecialchars($site['url'], ENT_QUOTES, 'UTF-8'); ?>
-        </small>
-    </div>
-</td>
-                                                        <td>
+                            <td>
+                                <div class="site-info">
+                                    <span class="site-name" style="font-weight: 600;">
+                                        <?php echo htmlspecialchars($site['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </span>
+                                    <small class="site-url" style="display: block; color: var(--text-muted); font-size: 0.75rem;">
+                                        <?php echo htmlspecialchars($site['url'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </small>
+                                </div>
+                            </td>
+                            <td>
                                 <div class="update-overview" style="display: flex; gap: 6px;">
                                     <div class="update-pill mini <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core">
                                         <i class="ph ph-cpu"></i> <span><?php echo $core; ?></span>
@@ -76,11 +75,11 @@ $sites = $siteService->getAll();
                                     </div>
                                 </div>
                             </td>
-                           <td>
-    <span class="text-muted" style="font-size: 0.9rem;">
-        v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0', ENT_QUOTES, 'UTF-8'); ?>
-    </span>
-</td>
+                            <td>
+                                <span class="text-muted" style="font-size: 0.9rem;">
+                                    v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0', ENT_QUOTES, 'UTF-8'); ?>
+                                </span>
+                            </td>
                             <td style="text-align: right;">
                                 <div class="action-buttons" style="display: flex; justify-content: flex-end; gap: 8px;">
                                     <button class="icon-btn" onclick="openDetails('<?php echo $id; ?>')" title="Details">
@@ -108,6 +107,7 @@ $sites = $siteService->getAll();
             <h3 id="modal-title">Details</h3>
             <button onclick="closeModal()" class="close-btn">&times;</button>
         </div>
-        <div id="modal-body"></div>
+        <div id="modal-body">
+            </div>
     </div>
 </div>
