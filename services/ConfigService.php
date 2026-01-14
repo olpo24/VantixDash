@@ -141,4 +141,19 @@ class ConfigService {
         $this->set('cron_secret', $token);
         return $this->save();
     }
+	// Ergänze dies in ConfigService.php
+public function setResetToken(string $token): bool {
+    $this->set('reset_token', hash('sha256', $token)); // Nur der Hash des Tokens wird gespeichert
+    $this->set('reset_expires', time() + 3600); // 1 Stunde gültig
+    return $this->save();
+}
+
+public function verifyResetToken(string $token): bool {
+    $storedHash = $this->get('reset_token');
+    $expires = $this->get('reset_expires');
+    
+    if (!$storedHash || !$expires || time() > $expires) return false;
+    
+    return hash_equals($storedHash, hash('sha256', $token));
+}
 }
