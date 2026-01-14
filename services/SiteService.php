@@ -16,6 +16,9 @@ class SiteService {
         $this->load();
     }
 
+    /**
+     * Lädt die Seiten aus der JSON-Datei
+     */
     private function load(): void {
         if (file_exists($this->file)) {
             $content = file_get_contents($this->file);
@@ -28,71 +31,69 @@ class SiteService {
         }
     }
 
-/**
- * Speichert die aktuellen Seiten atomar in die JSON-Datei
- */
-public function save(?array $sites = null): bool {
-    if ($sites !== null) {
-        $this->sites = $sites;
-    }
-
-    $jsonContent = json_encode(array_values($this->sites), JSON_PRETTY_PRINT);
-    if ($jsonContent === false) {
-        return false;
-    }
-
-    // 1. Temporären Dateinamen generieren
-    $tempFile = $this->file . '.tmp.' . bin2hex(random_bytes(8));
-
-    // 2. In Temp-Datei schreiben mit exklusivem Lock
-    // LOCK_EX verhindert, dass andere Prozesse gleichzeitig in DIESE Temp-Datei schreiben
-    if (file_put_contents($tempFile, $jsonContent, LOCK_EX) === false) {
-        return false;
-    }
-
-    // 3. Atomares Ersetzen (Rename)
-    // Das Betriebssystem tauscht den Dateizeiger aus. 
-    // Ein lesender Prozess sieht entweder die alte ODER die neue Datei, niemals ein Fragment.
-    if (!rename($tempFile, $this->file)) {
-        // Falls Rename fehlschlägt, Temp-Datei aufräumen
-        if (file_exists($tempFile)) {
-            unlink($tempFile);
+    /**
+     * Speichert die aktuellen Seiten atomar in die JSON-Datei
+     */
+    public function save(?array $sites = null): bool {
+        if ($sites !== null) {
+            $this->sites = $sites;
         }
-        return false;
+
+        $jsonContent = json_encode(array_values($this->sites), JSON_PRETTY_PRINT);
+        if ($jsonContent === false) {
+            return false;
+        }
+
+        // 1. Temporären Dateinamen generieren (Schutz vor Race Conditions)
+        $tempFile = $this->file . '.tmp.' . bin2hex(random_bytes(8));
+
+        // 2. In Temp-Datei schreiben mit exklusivem Lock
+        if (file_put_contents($tempFile, $jsonContent, LOCK_EX) === false) {
+            return false;
+        }
+
+        // 3. Atomares Ersetzen (Rename)
+        if (!rename($tempFile, $this->file)) {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+            return false;
+        }
+
+        return true;
     }
 
-    return true;
-}
-
+    /**
+     * Gibt alle geladenen Seiten zurück
+     */
     public function getAll(): array { 
         return $this->sites; 
     }
 
     /**
      * Aktualisiert die Daten einer WordPress-Seite via API
-     * @return array|false Die aktualisierten Daten oder false bei Fehler
      */
-    public function refreshSiteData(string $id) {
-    foreach ($this->sites as &$site) {
-        if ($site['id'] === $id) {
-            $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
-            
-            // FIX: Header Injection verhindern
-            // Wir entfernen alle Zeilenumbrüche aus dem API-Key
-            $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
-            $timeout = $this->config->getTimeout('site_check'); // Wert nutzen!
-            $options = [
-                'http' => [
-                    'method' => 'GET',
-                    'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
-                                "User-Agent: VantixDash-Monitor/1.0\r\n",
-                    'timeout' => $timeout,
-                    'ignore_errors' => true
-                ]
-            ];
-            
-            $context = stream_context_create($options);
-                $response = file_get_contents($apiUrl, false, $context);
+    public function refreshSiteData(string $id): array|false {
+        foreach ($this->sites as &$site) {
+            if ($site['id'] === $id) {
+                $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
+                
+                // Header Injection verhindern & Timeout laden
+                $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
+                $timeout = $this->config->getTimeout('site_check');
+
+                $options = [
+                    'http' => [
+                        'method' => 'GET',
+                        'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
+                                    "User-Agent: VantixDash-Monitor/1.0\r\n",
+                        'timeout' => $timeout,
+                        'ignore_errors' => true
+                    ]
+                ];
+                
+                $context = stream_context_create($options);
+                $response = @file_get_contents($apiUrl, false, $context);
 
                 if ($response !== false) {
                     $data = json_decode($response, true);
@@ -132,22 +133,24 @@ public function save(?array $sites = null): bool {
         return false;
     }
 
+    /**
+     * Validiert das Format des API Keys
+     */
     private function isValidApiKey(string $key): bool {
         return (bool)preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
     }
 
     /**
      * Fügt eine neue Seite hinzu
-     * @return array|false Die neue Seite oder false bei Validierungsfehler
      */
-    public function addSite(string $name, string $url) {
+    public function addSite(string $name, string $url): array|false {
         $apiKey = bin2hex(random_bytes(16)); 
         
         if (!$this->isValidApiKey($apiKey)) {
             return false; 
         }
 
-        $id = uniqid();
+        $id = bin2hex(random_bytes(6)); // Sicherere ID als uniqid()
         $newSite = [
             'id' => $id,
             'name' => htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
@@ -162,17 +165,20 @@ public function save(?array $sites = null): bool {
         ];
 
         $this->sites[] = $newSite;
-        $this->save();
-        return $newSite;
+        return $this->save() ? $newSite : false;
     }
 
+    /**
+     * Löscht eine Seite anhand der ID
+     */
     public function deleteSite(string $id): bool {
-        foreach ($this->sites as $k => $s) {
-            if ($s['id'] === $id) { 
-                unset($this->sites[$k]); 
-                return $this->save(); 
-            }
+        $originalCount = count($this->sites);
+        $this->sites = array_filter($this->sites, fn($s) => $s['id'] !== $id);
+        
+        if (count($this->sites) === $originalCount) {
+            return false;
         }
-        return false;
+
+        return $this->save();
     }
 }
