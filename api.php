@@ -30,6 +30,7 @@ require_once __DIR__ . '/services/Logger.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+require_once __DIR__ . '/services/MailService.php';
 
 // Falls RateLimiter vorhanden ist, laden, sonst Dummy-Klasse für Fehlersicherheit
 if (file_exists(__DIR__ . '/services/RateLimiter.php')) {
@@ -152,25 +153,23 @@ switch ($action) {
 		// In api.php, innerhalb des switch ($action) Blocks:
 
 case 'test_smtp':
-    // 1. Initialisierung (falls noch nicht geschehen)
+    // Der MailService benötigt Config und Logger
     $mailService = new MailService($configService, $logger);
     
-    // 2. Ziel-Email holen
     $targetEmail = $_POST['email'] ?? '';
     if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
-        jsonError(400, 'Ungültige Empfänger-E-Mail.');
+        echo json_encode(['success' => false, 'message' => 'Ungültige Empfänger-E-Mail.']);
+        exit;
     }
 
-    // 3. Test-Mail senden
     $subject = "VantixDash - SMTP Test";
-    $html = "<h1>Test erfolgreich!</h1><p>Wenn du diese E-Mail liest, sind deine SMTP-Einstellungen korrekt konfiguriert.</p><p>Zeitstempel: " . date('Y-m-d H:i:s') . "</p>";
-    $alt = "SMTP Test erfolgreich! Zeitstempel: " . date('Y-m-d H:i:s');
+    $html = "<h1>Test erfolgreich!</h1><p>Deine SMTP-Einstellungen in VantixDash funktionieren korrekt.</p>";
+    $alt = "SMTP Test erfolgreich!";
 
     if ($mailService->send($targetEmail, $subject, $html, $alt)) {
-        jsonSuccess([], 'Test-E-Mail erfolgreich versendet.');
+        echo json_encode(['success' => true, 'message' => 'Test-E-Mail versendet.']);
     } else {
-        // Der MailService loggt den detaillierten PHPMailer-Fehler bereits
-        jsonError(500, 'Versand fehlgeschlagen. Prüfe die System-Logs für Details.');
+        echo json_encode(['success' => false, 'message' => 'Versand fehlgeschlagen. Siehe Logs.']);
     }
-    break;
+    exit;
 }
