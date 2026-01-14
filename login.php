@@ -21,7 +21,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     exit;
 }
 
-// Erfolgsmeldungen abfangen (z.B. nach Passwort-Reset oder Session-Timeout)
+// Erfolgsmeldungen abfangen
 if (isset($_GET['reset']) && $_GET['reset'] === '1') {
     $success = 'Dein Passwort wurde erfolgreich geändert. Bitte logge dich neu ein.';
 } elseif (isset($_GET['timeout']) && $_GET['timeout'] === '1') {
@@ -29,7 +29,7 @@ if (isset($_GET['reset']) && $_GET['reset'] === '1') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // RATE LIMITING CHECK: Max 5 Versuche in 5 Minuten (300 Sek)
+    // RATE LIMITING CHECK: Nutzt IP-basiertes Limiting
     if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_login', 5, 300)) {
         $error = 'Zu viele Fehlversuche. Bitte warten Sie 5 Minuten.';
     } else {
@@ -40,12 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $_POST['username'] ?? '';
             $pass = $_POST['password'] ?? '';
 
-            $storedUser = $configService->get('username');
-            $storedHash = $configService->get('password_hash');
+            // FIX: Nutze getString() statt get()
+            $storedUser = $configService->getString('username');
+            $storedHash = $configService->getString('password_hash');
 
-            if ($user === $storedUser && password_verify($pass, (string)$storedHash)) {
-                // Passwort korrekt! Prüfen, ob 2FA aktiv ist
-                if ($configService->get('2fa_enabled')) {
+            if ($user !== '' && $user === $storedUser && password_verify($pass, $storedHash)) {
+                // Passwort korrekt! Prüfen, ob 2FA aktiv ist (FIX: Nutze getBool)
+                if ($configService->getBool('2fa_enabled')) {
                     $_SESSION['auth_pending'] = true; 
                     $_SESSION['temp_user'] = $user;
                 } else {
@@ -70,12 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $code = $_POST['2fa_code'] ?? '';
-            
-            // GoogleAuthenticator ist eine externe Lib ohne Namespace
             require_once __DIR__ . '/libs/GoogleAuthenticator.php';
             $ga = new \PHPGangsta_GoogleAuthenticator();
             
-            $secret = (string)$configService->get('2fa_secret', '');
+            // FIX: Nutze getString() statt get()
+            $secret = $configService->getString('2fa_secret');
 
             if ($ga->verifyCode($secret, $code, 2)) {
                 session_regenerate_id(true);
@@ -96,53 +96,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - VantixDash</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
-        .login-footer {
-            margin-top: 20px;
+        /* Spezifisches Styling für die Login-Seite, basierend auf deinem neuen Farbschema */
+        body.login-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f5f7fb;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.05);
+        }
+        .login-header {
             text-align: center;
-            border-top: 1px solid var(--border-color, #eee);
-            padding-top: 15px;
+            margin-bottom: 2rem;
         }
-        .forgot-link {
-            color: #666;
-            text-decoration: none;
+        .login-header h2 {
+            color: #222e3c;
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+        .alert-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+        .alert-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+        
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #495057; font-size: 0.9rem; }
+        .form-control {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 0.75rem;
+            background: #3b7ddd;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn-login:hover { background: #2f64b1; }
+        .login-footer {
+            margin-top: 1.5rem;
+            text-align: center;
             font-size: 0.85rem;
-            transition: color 0.2s;
         }
-        .forgot-link:hover {
-            color: var(--primary-color, #333);
-            text-decoration: underline;
-        }
-        .alert.success {
-            background-color: rgba(40, 167, 69, 0.1);
-            color: #28a745;
-            border: 1px solid #28a745;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-        .alert.error {
-            background-color: rgba(220, 53, 69, 0.1);
-            color: #dc3545;
-            border: 1px solid #dc3545;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
+        .login-footer a { color: #6c757d; text-decoration: none; }
+        .login-footer a:hover { text-decoration: underline; }
     </style>
 </head>
 <body class="login-page">
-    <div class="login-card card">
-        <h2 style="text-align: center; margin-bottom: 20px;">VantixDash</h2>
+    <div class="login-card">
+        <div class="login-header">
+            <h2>VantixDash</h2>
+        </div>
 
         <?php if ($error): ?>
-            <div class="alert error"><?php echo htmlspecialchars($error); ?></div>
+            <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
 
         <?php if ($success): ?>
-            <div class="alert success"><?php echo htmlspecialchars($success); ?></div>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
 
         <?php if (!isset($_SESSION['auth_pending'])): ?>
@@ -150,29 +185,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="hidden" name="action" value="login">
                 <div class="form-group">
                     <label>Benutzername</label>
-                    <input type="text" name="username" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd;" required autofocus>
+                    <input type="text" name="username" class="form-control" required autofocus>
                 </div>
-                <div class="form-group" style="margin-top: 15px;">
+                <div class="form-group">
                     <label>Passwort</label>
-                    <input type="password" name="password" style="width:100%; padding:10px; border-radius:5px; border:1px solid #ddd;" required>
+                    <input type="password" name="password" class="form-control" required>
                 </div>
-                <button type="submit" class="btn-primary" style="width:100%; margin-top: 20px; padding: 12px; cursor: pointer;">Anmelden</button>
+                <button type="submit" class="btn-login">Anmelden</button>
             </form>
 
             <div class="login-footer">
-                <a href="forgot-password.php" class="forgot-link">Passwort vergessen?</a>
+                <a href="forgot-password.php">Passwort vergessen?</a>
             </div>
 
         <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="action" value="verify_2fa">
-                <p style="text-align: center; margin-bottom: 20px;">Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:</p>
+                <p style="text-align: center; font-size: 0.9rem; margin-bottom: 1.5rem; color: #6c757d;">
+                    Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:
+                </p>
                 <div class="form-group">
-                    <input type="text" name="2fa_code" placeholder="000000" maxlength="6" 
-                           style="width: 100%; font-size: 2rem; text-align: center; letter-spacing: 5px; padding: 10px; border-radius: 8px; border: 1px solid #ddd;" autofocus required>
+                    <input type="text" name="2fa_code" placeholder="000 000" maxlength="6" 
+                           style="width: 100%; font-size: 1.75rem; text-align: center; letter-spacing: 4px; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px;" 
+                           autofocus required>
                 </div>
-                <button type="submit" class="btn-primary" style="width:100%; margin-top: 20px; padding: 12px; cursor: pointer;">Verifizieren & Einloggen</button>
-                <a href="logout.php" style="display:block; margin-top:15px; text-align:center; color: #666; text-decoration: none;">Abbrechen</a>
+                <button type="submit" class="btn-login">Verifizieren & Einloggen</button>
+                <div class="login-footer">
+                    <a href="logout.php">Abbrechen</a>
+                </div>
             </form>
         <?php endif; ?>
     </div>
