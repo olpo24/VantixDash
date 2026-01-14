@@ -173,15 +173,31 @@ public function clearResetToken(): void {
     $this->set('reset_expires', null);
     $this->save();
 }
-	public function getSmtpSettings(): array {
-    // Beispielhafte Rückgabe – lade diese Daten aus deiner JSON/Config
-    return [
-        'host'       => 'smtp.dein-anbieter.de',
-        'user'       => 'dein_username',
-        'pass'       => 'dein_passwort',
-        'port'       => 587,
-        'from_email' => 'noreply@deine-domain.de',
-        'from_name'  => 'VantixDash System'
+public function getSmtpConfig(): array {
+    $config = $this->loadConfig(); // Deine bestehende Methode zum Laden der JSON
+    return $config['smtp'] ?? [
+        'host' => '',
+        'user' => '',
+        'pass' => '',
+        'port' => 587,
+        'from_email' => '',
+        'from_name' => 'VantixDash'
     ];
+}
+
+public function updateSmtpConfig(array $newData): bool {
+    $config = $this->loadConfig();
+    
+    // Bestehende Daten behalten, nur 'smtp' überschreiben/erstellen
+    $config['smtp'] = [
+        'host'       => (string)($newData['host'] ?? ''),
+        'user'       => (string)($newData['user'] ?? ''),
+        'pass'       => (string)($newData['pass'] ?? ''),
+        'port'       => (int)($newData['port'] ?? 587),
+        'from_email' => (string)($newData['from_email'] ?? ''),
+        'from_name'  => (string)($newData['from_name'] ?? 'VantixDash')
+    ];
+
+    return $this->saveConfig($config); // Deine bestehende Methode zum Speichern der JSON
 }
 }
