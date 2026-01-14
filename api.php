@@ -45,7 +45,7 @@ function getRequestHeader(string $name): string {
 // 2. INITIALISIERUNG
 $rateLimiter = new RateLimiter();
 $ga = new PHPGangsta_GoogleAuthenticator();
-$configService = new ConfigService($ga);
+$configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
 
 // 3. RATE LIMITING (Globaler Schutz vor API-Abuse)
