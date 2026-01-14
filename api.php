@@ -90,15 +90,29 @@ try {
     switch ($action) {
         
         case 'refresh_site':
-            $id = $_GET['id'] ?? '';
-            if (empty($id)) jsonError(400, 'ID fehlt');
-            
-            // Nutzt die optimierte O(1) Methode im SiteService
-            $updatedSite = $siteService->refreshSiteData($id);
-            if ($updatedSite) {
-                jsonSuccess(['data' => $updatedSite], 'Daten aktualisiert.');
-            } else {
-                jsonError(500, 'Check fehlgeschlagen (URL nicht erreichbar oder Key falsch).');
+            try {
+                $id = $_GET['id'] ?? '';
+                if (empty($id)) {
+                    jsonError(400, 'ID fehlt');
+                }
+
+                // Der Service wirft jetzt bei Problemen eine SiteRefreshException
+                $updatedSite = $siteService->refreshSiteData($id);
+                
+                jsonSuccess([
+                    'data' => $updatedSite
+                ], 'Seite erfolgreich aktualisiert.');
+
+            } catch (\VantixDash\Exception\SiteRefreshException $e) {
+                // Dies sind "erwartete" Fehler (z.B. WP-Seite offline oder API-Key falsch)
+                // Wir loggen es als Info/Warnung und geben die Nachricht ans Frontend
+                $logger->info("Refresh-Warnung für ID $id: " . $e->getMessage());
+                jsonError(422, $e->getMessage()); 
+
+            } catch (Exception $e) {
+                // Dies sind kritische Systemfehler (z.B. Dateisystem-Fehler)
+                $logger->error("Kritischer Fehler bei Refresh: " . $e->getMessage());
+                jsonError(500, 'Ein interner Systemfehler ist aufgetreten.');
             }
             break;
 
