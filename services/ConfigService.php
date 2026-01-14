@@ -54,7 +54,6 @@ class ConfigService {
             'rate_limit'    => 300
         ];
         
-        // Sucht in config.json nach 'timeout_api' etc., sonst Standardwert
         return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
     }
 
@@ -76,7 +75,7 @@ class ConfigService {
      * Speichert die aktuellen Einstellungen permanent (Atomares Schreiben)
      */
     public function save(): bool {
-        $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT);
+        $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         if ($jsonContent === false) {
             return false;
         }
@@ -105,13 +104,9 @@ class ConfigService {
      * Aktualisiert Username und Email mit Sanitizing
      */
     public function updateUser(string $username, string $email): bool {
-        // Trimmen und Tags entfernen für den Usernamen
         $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
-        
-        // E-Mail Validierung
         $sanitizedEmail = filter_var($email, FILTER_SANITIZE_EMAIL);
         $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : '';
-        
         return $this->save();
     }
 
@@ -141,87 +136,66 @@ class ConfigService {
         $this->set('cron_secret', $token);
         return $this->save();
     }
-	
-/**
- * Erzeugt einen Reset-Token-Hash und setzt das Ablaufdatum
- */
-public function setResetToken(string $token): bool {
-    $this->set('reset_token', hash('sha256', $token));
-    $this->set('reset_expires', time() + 1800); // 30 Minuten Gültigkeit
-    return $this->save();
-}
-
-/**
- * Verifiziert den Token gegen den gespeicherten Hash
- */
-public function verifyResetToken(string $token): bool {
-    $storedHash = $this->get('reset_token');
-    $expires = (int)$this->get('reset_expires', 0);
     
-    if (!$storedHash || time() > $expires) {
-        return false;
+    /**
+     * Erzeugt einen Reset-Token-Hash und setzt das Ablaufdatum
+     */
+    public function setResetToken(string $token): bool {
+        $this->set('reset_token', hash('sha256', $token));
+        $this->set('reset_expires', time() + 1800); // 30 Minuten Gültigkeit
+        return $this->save();
     }
-    
-    return hash_equals($storedHash, hash('sha256', $token));
-}
 
-/**
- * Löscht Reset-Daten nach Verwendung oder Fehler
- */
-public function clearResetToken(): void {
-    $this->set('reset_token', null);
-    $this->set('reset_expires', null);
-    $this->save();
-}
-<?php
-// In services/ConfigService.php
-
-/**
- * Hilfsmethode zum Laden der gesamten JSON
- */
-private function loadRawConfig(): array {
-    $configFile = __DIR__ . '/../data/config.json';
-    if (!file_exists($configFile)) {
-        return [];
+    /**
+     * Verifiziert den Token gegen den gespeicherten Hash
+     */
+    public function verifyResetToken(string $token): bool {
+        $storedHash = $this->get('reset_token');
+        $expires = (int)$this->get('reset_expires', 0);
+        
+        if (!$storedHash || time() > $expires) {
+            return false;
+        }
+        
+        return hash_equals($storedHash, hash('sha256', $token));
     }
-    $content = file_get_contents($configFile);
-    return json_decode($content, true) ?: [];
-}
 
-/**
- * Hilfsmethode zum Speichern der gesamten JSON
- */
-private function saveRawConfig(array $data): bool {
-    $configFile = __DIR__ . '/../data/config.json';
-    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    return file_put_contents($configFile, $json) !== false;
-}
+    /**
+     * Löscht Reset-Daten nach Verwendung oder Fehler
+     */
+    public function clearResetToken(): void {
+        $this->set('reset_token', null);
+        $this->set('reset_expires', null);
+        $this->save();
+    }
 
-public function getSmtpConfig(): array {
-    $config = $this->loadRawConfig();
-    return $config['smtp'] ?? [
-        'host' => '',
-        'user' => '',
-        'pass' => '',
-        'port' => 587,
-        'from_email' => '',
-        'from_name' => 'VantixDash'
-    ];
-}
+    /**
+     * Holt die SMTP-Einstellungen aus den Settings
+     */
+    public function getSmtpConfig(): array {
+        return $this->settings['smtp'] ?? [
+            'host' => '',
+            'user' => '',
+            'pass' => '',
+            'port' => 587,
+            'from_email' => '',
+            'from_name' => 'VantixDash'
+        ];
+    }
 
-public function updateSmtpConfig(array $newData): bool {
-    $config = $this->loadRawConfig();
-    
-    // Bestehende Daten behalten, nur 'smtp' überschreiben
-    $config['smtp'] = [
-        'host'       => (string)($newData['host'] ?? ''),
-        'user'       => (string)($newData['user'] ?? ''),
-        'pass'       => (string)($newData['pass'] ?? ''),
-        'port'       => (int)($newData['port'] ?? 587),
-        'from_email' => (string)($newData['from_email'] ?? ''),
-        'from_name'  => (string)($newData['from_name'] ?? 'VantixDash')
-    ];
+    /**
+     * Aktualisiert die SMTP-Sektion und speichert
+     */
+    public function updateSmtpConfig(array $newData): bool {
+        $this->settings['smtp'] = [
+            'host'       => (string)($newData['host'] ?? ''),
+            'user'       => (string)($newData['user'] ?? ''),
+            'pass'       => (string)($newData['pass'] ?? ''),
+            'port'       => (int)($newData['port'] ?? 587),
+            'from_email' => (string)($newData['from_email'] ?? ''),
+            'from_name'  => (string)($newData['from_name'] ?? 'VantixDash')
+        ];
 
-    return $this->saveRawConfig($config);
-}
+        return $this->save();
+    }
 }
