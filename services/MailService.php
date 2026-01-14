@@ -27,6 +27,7 @@ class MailService {
         try {
             // SMTP Einstellungen
             $mail->isSMTP();
+			$mail->Timeout = 10;
             $mail->Host       = $smtpSettings['host'];
             $mail->SMTPAuth   = true;
             $mail->Username   = $smtpSettings['user'];
