@@ -44,9 +44,9 @@ function getRequestHeader(string $name): string {
 $logger = new Logger();
 $configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
-$rateLimiter = new RateLimiter(); // Nutzt jetzt den Autoloader
+$rateLimiter = new RateLimiter();
 
-// Externe Libs (nicht PSR-4 konform) weiterhin manuell laden
+// Externe Libs (nicht PSR-4 konform)
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 $ga = new \PHPGangsta_GoogleAuthenticator();
 
@@ -54,7 +54,7 @@ $ga = new \PHPGangsta_GoogleAuthenticator();
  * 4. GLOBALER SCHUTZ
  */
 
-// Rate Limiting (Global für API)
+// Rate Limiting
 if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_api', 60, 60)) {
     jsonError(429, 'Zu viele Anfragen. Bitte kurz warten.');
 }
@@ -82,100 +82,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /**
- * 5. ROUTING
+ * 5. ROUTING MIT FEHLERBEHANDLUNG
  */
 $action = $_GET['action'] ?? '';
 
-switch ($action) {
-    case 'refresh_site':
-        $id = $_GET['id'] ?? '';
-        if (empty($id)) jsonError(400, 'ID fehlt');
-        $updatedSite = $siteService->refreshSiteData($id);
-        $updatedSite ? jsonSuccess(['data' => $updatedSite]) : jsonError(500, 'Check fehlgeschlagen.');
-        break;
+try {
+    switch ($action) {
+        case 'refresh_site':
+            $id = $_GET['id'] ?? '';
+            if (empty($id)) jsonError(400, 'ID fehlt');
+            $updatedSite = $siteService->refreshSiteData($id);
+            $updatedSite ? jsonSuccess(['data' => $updatedSite]) : jsonError(500, 'Check fehlgeschlagen.');
+            break;
 
-    case 'login_site':
-        $id = $_GET['id'] ?? '';
-        $sites = $siteService->getAll();
-        $targetSite = null;
-        foreach ($sites as $s) { if ($s['id'] === $id) { $targetSite = $s; break; } }
+        case 'login_site':
+            $id = $_GET['id'] ?? '';
+            $sites = $siteService->getAll();
+            $targetSite = null;
+            foreach ($sites as $s) { if ($s['id'] === $id) { $targetSite = $s; break; } }
 
-        if ($targetSite) {
-            $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
-            $options = ['http' => [
-                'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n",
-                'timeout' => 10
-            ]];
-            $response = @file_get_contents($apiUrl, false, stream_context_create($options));
-            $data = json_decode((string)$response, true);
-            isset($data['login_url']) ? jsonSuccess(['login_url' => $data['login_url']]) : jsonError(500, 'Login fehlgeschlagen.');
-        } else {
-            jsonError(404, 'Seite nicht gefunden.');
-        }
-        break;
+            if ($targetSite) {
+                $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
+                $options = ['http' => [
+                    'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n",
+                    'timeout' => 10
+                ]];
+                $response = @file_get_contents($apiUrl, false, stream_context_create($options));
+                $data = json_decode((string)$response, true);
+                isset($data['login_url']) ? jsonSuccess(['login_url' => $data['login_url']]) : jsonError(500, 'Login fehlgeschlagen.');
+            } else {
+                jsonError(404, 'Seite nicht gefunden.');
+            }
+            break;
 
-    case 'add_site':
-        $newSite = $siteService->addSite($_POST['name'] ?? '', $_POST['url'] ?? '');
-        $newSite ? jsonSuccess(['site' => $newSite]) : jsonError(500, 'Fehler beim Speichern.');
-        break;
+        case 'add_site':
+            $name = $_POST['name'] ?? '';
+            $url = $_POST['url'] ?? '';
+            
+            if (empty($name) || empty($url)) {
+                jsonError(400, 'Bitte Name und URL angeben.');
+            }
 
-    case 'delete_site':
-        $siteService->deleteSite($_POST['id'] ?? '') ? jsonSuccess() : jsonError(500, 'Löschen fehlgeschlagen.');
-        break;
+            // Hier werden die neuen Exceptions aus SiteService gefangen
+            $newSite = $siteService->addSite($name, $url);
+            $newSite ? jsonSuccess(['site' => $newSite], 'Seite hinzugefügt.') : jsonError(500, 'Fehler beim Speichern.');
+            break;
 
-    case 'get_logs':
-        $logFile = __DIR__ . '/data/app.log';
-        $logContent = file_exists($logFile) ? implode("", array_reverse(array_slice(file($logFile), -50))) : 'Keine Logs.';
-        jsonSuccess(['logs' => htmlspecialchars($logContent)]);
-        break;
+        case 'delete_site':
+            $siteService->deleteSite($_POST['id'] ?? '') ? jsonSuccess([], 'Seite entfernt.') : jsonError(500, 'Löschen fehlgeschlagen.');
+            break;
 
-    case 'clear_logs':
-        file_put_contents(__DIR__ . '/data/app.log', "");
-        $logger->info("Logs geleert.");
-        jsonSuccess();
-        break;
+        case 'get_logs':
+            // Nutzt jetzt die Struktur aus SiteService-Refactoring
+            $logs = $logger->getEntries(); 
+            jsonSuccess(['data' => $logs]);
+            break;
 
-    case 'update_profile':
-        $configService->updateUser($_POST['username'] ?? '', $_POST['email'] ?? '') ? jsonSuccess() : jsonError(500, 'Fehler.');
-        break;
+        case 'clear_logs':
+            if ($logger->clear()) {
+                $logger->info("Logs geleert.");
+                jsonSuccess([], 'Logs erfolgreich geleert.');
+            } else {
+                jsonError(500, 'Fehler beim Leeren der Logs.');
+            }
+            break;
 
-    case 'setup_2fa':
-        $secret = $ga->createSecret();
-        $_SESSION['temp_2fa_secret'] = $secret;
-        jsonSuccess(['qrCodeUrl' => $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash'), 'secret' => $secret]);
-        break;
+        case 'update_profile':
+            $configService->updateUser($_POST['username'] ?? '', $_POST['email'] ?? '') ? jsonSuccess([], 'Profil aktualisiert.') : jsonError(500, 'Fehler.');
+            break;
 
-    case 'verify_2fa':
-        $secret = $_SESSION['temp_2fa_secret'] ?? '';
-        if ($ga->verifyCode($secret, $_POST['code'] ?? '', 2)) {
-            $configService->update2FA(true, $secret);
-            unset($_SESSION['temp_2fa_secret']);
-            jsonSuccess([], '2FA aktiv.');
-        } else {
-            jsonError(400, 'Code falsch.');
-        }
-        break;
+        case 'setup_2fa':
+            $secret = $ga->createSecret();
+            $_SESSION['temp_2fa_secret'] = $secret;
+            jsonSuccess(['qrCodeUrl' => $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash'), 'secret' => $secret]);
+            break;
 
-    case 'test_smtp':
-        $mailService = new MailService($configService, $logger);
-        $targetEmail = $_POST['email'] ?? '';
-        
-        if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
-            jsonError(400, 'Ungültige Empfänger-E-Mail.');
-        }
+        case 'verify_2fa':
+            $secret = $_SESSION['temp_2fa_secret'] ?? '';
+            if ($ga->verifyCode($secret, $_POST['code'] ?? '', 2)) {
+                $configService->update2FA(true, $secret);
+                unset($_SESSION['temp_2fa_secret']);
+                jsonSuccess([], '2FA erfolgreich aktiviert.');
+            } else {
+                jsonError(400, 'Der eingegebene Code ist falsch.');
+            }
+            break;
 
-        $subject = "VantixDash - SMTP Test";
-        $html = "<h1>Test erfolgreich!</h1><p>Deine SMTP-Einstellungen in VantixDash funktionieren korrekt.</p>";
-        $alt = "SMTP Test erfolgreich!";
+        case 'test_smtp':
+            $mailService = new MailService($configService, $logger);
+            $targetEmail = $_POST['email'] ?? '';
+            
+            if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+                jsonError(400, 'Ungültige Empfänger-E-Mail.');
+            }
 
-        if ($mailService->send($targetEmail, $subject, $html, $alt)) {
-            jsonSuccess([], 'Test-E-Mail versendet.');
-        } else {
-            jsonError(500, 'Versand fehlgeschlagen. Siehe Logs.');
-        }
-        break;
+            if ($mailService->send($targetEmail, "VantixDash - SMTP Test", "<h1>Test erfolgreich!</h1>", "Test erfolgreich!")) {
+                jsonSuccess([], 'Test-E-Mail versendet.');
+            } else {
+                jsonError(500, 'Versand fehlgeschlagen.');
+            }
+            break;
 
-    default:
-        jsonError(404, 'Unbekannte Aktion');
-        break;
+        default:
+            jsonError(404, 'Unbekannte Aktion');
+            break;
+    }
+} catch (Exception $e) {
+    // Zentrales Abfangen aller Exceptions (z.B. URL-Validierungsfehler)
+    jsonError(400, $e->getMessage());
 }
