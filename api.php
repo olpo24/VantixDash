@@ -56,9 +56,13 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 
 // 3. SERVICES & LIBS LADEN
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+require_once __DIR__ . '/services/Logger.php';
 require_once __DIR__ . '/services/ConfigService.php';
 require_once __DIR__ . '/services/SiteService.php';
-require_once __DIR__ . '/services/RateLimiter.php';
+
+$logger = new Logger(); // Nutzt Standard-Pfad data/app.log
+$configService = new ConfigService();
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
 
 $rateLimiter = new RateLimiter();
 $ga = new PHPGangsta_GoogleAuthenticator();
@@ -210,5 +214,24 @@ switch ($action) {
 
     default:
         jsonError(404, 'Unbekannte Aktion');
+        break;
+		case 'get_logs':
+        $logFile = __DIR__ . '/data/app.log';
+        if (!file_exists($logFile)) {
+            jsonSuccess(['logs' => 'Keine Log-Daten vorhanden.']);
+        }
+        
+        // Die letzten 50 Zeilen einlesen
+        $lines = file($logFile);
+        $lastLines = array_slice($lines, -50);
+        $logContent = implode("", array_reverse($lastLines)); // Neueste zuerst
+        
+        jsonSuccess(['logs' => htmlspecialchars($logContent)]);
+        break;
+
+    case 'clear_logs':
+        $logFile = __DIR__ . '/data/app.log';
+        file_put_contents($logFile, "");
+        jsonSuccess([], 'Logs gelöscht.');
         break;
 }
