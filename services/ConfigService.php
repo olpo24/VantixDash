@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace VantixDash;
 
 /**
- * ConfigService - Optimierte Verwaltung mit Static Caching
+ * ConfigService - Typsichere Verwaltung mit Static Caching
  */
 class ConfigService {
     private array $settings = [];
@@ -61,11 +61,37 @@ class ConfigService {
         }
     }
 
+    // --- TYPSICHERE GETTER ---
+
     /**
-     * Holt eine Einstellung mit Fallback
+     * Holt einen String-Wert
      */
-    public function get(string $key, $default = null) {
-        return $this->settings[$key] ?? $default;
+    public function getString(string $key, string $default = ''): string {
+        return (string)($this->settings[$key] ?? $default);
+    }
+
+    /**
+     * Holt einen Integer-Wert
+     */
+    public function getInt(string $key, int $default = 0): int {
+        return (int)($this->settings[$key] ?? $default);
+    }
+
+    /**
+     * Holt einen Boolean-Wert (behandelt auch "true"/"false" Strings)
+     */
+    public function getBool(string $key, bool $default = false): bool {
+        if (!isset($this->settings[$key])) {
+            return $default;
+        }
+        return filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Holt ein Array
+     */
+    public function getArray(string $key, array $default = []): array {
+        return (array)($this->settings[$key] ?? $default);
     }
 
     /**
@@ -77,7 +103,7 @@ class ConfigService {
     }
 
     /**
-     * Hilfsmethode für Timeouts
+     * Hilfsmethode für Timeouts (jetzt typsicher via getInt)
      */
     public function getTimeout(string $type): int {
         $defaults = [
@@ -86,7 +112,7 @@ class ConfigService {
             'session'    => 3600,
             'rate_limit' => 300
         ];
-        return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
+        return $this->getInt("timeout_$type", $defaults[$type] ?? 10);
     }
 
     public function getVersion(): string {
@@ -98,7 +124,7 @@ class ConfigService {
     }
 
     /**
-     * Speichert die Einstellungen und invalidiert/aktualisiert den Cache
+     * Speichert die Einstellungen atomar
      */
     public function save(): bool {
         $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -107,7 +133,7 @@ class ConfigService {
         $tempFile = $this->configPath . '.tmp.' . bin2hex(random_bytes(8));
         if (file_put_contents($tempFile, $jsonContent, LOCK_EX) !== false) {
             if (rename($tempFile, $this->configPath)) {
-                self::$settingsCache = $this->settings; // Cache synchron halten
+                self::$settingsCache = $this->settings;
                 return true;
             }
         }
@@ -116,16 +142,16 @@ class ConfigService {
 
     public function getUserData(): array {
         return [
-            'username'    => (string)$this->get('username', ''),
-            'email'       => (string)$this->get('email', ''),
-            '2fa_enabled' => (bool)$this->get('2fa_enabled', false)
+            'username'    => $this->getString('username'),
+            'email'       => $this->getString('email'),
+            '2fa_enabled' => $this->getBool('2fa_enabled')
         ];
     }
 
     public function updateUser(string $username, string $email): bool {
         $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
         $sanitizedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
-        $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : $this->settings['email'];
+        $this->settings['email'] = $sanitizedEmail !== false ? $sanitizedEmail : $this->getString('email');
         return $this->save();
     }
 
@@ -141,21 +167,21 @@ class ConfigService {
     }
 
     public function updateCronSecret(string $token): bool {
-        $this->set('cron_secret', $token);
+        $this->settings['cron_secret'] = $token;
         return $this->save();
     }
     
     public function setResetToken(string $token): bool {
-        $this->set('reset_token', hash('sha256', $token));
-        $this->set('reset_expires', time() + 1800);
+        $this->settings['reset_token'] = hash('sha256', $token);
+        $this->settings['reset_expires'] = time() + 1800;
         return $this->save();
     }
 
     public function verifyResetToken(string $token): bool {
-        $storedHash = $this->get('reset_token');
-        $expires = (int)$this->get('reset_expires', 0);
-        if (!$storedHash || time() > $expires) return false;
-        return hash_equals((string)$storedHash, hash('sha256', $token));
+        $storedHash = $this->getString('reset_token');
+        $expires = $this->getInt('reset_expires');
+        if (empty($storedHash) || time() > $expires) return false;
+        return hash_equals($storedHash, hash('sha256', $token));
     }
 
     public function clearResetToken(): void {
@@ -165,10 +191,10 @@ class ConfigService {
     }
 
     public function getSmtpConfig(): array {
-        return $this->settings['smtp'] ?? [
+        return $this->getArray('smtp', [
             'host' => '', 'user' => '', 'pass' => '', 'port' => 587,
             'from_email' => '', 'from_name' => 'VantixDash'
-        ];
+        ]);
     }
 
     public function updateSmtpConfig(array $newData): bool {
