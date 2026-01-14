@@ -279,3 +279,50 @@ body {
 
 /* Utilities */
 button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Layout Basis */
+.wrapper { display: flex; width: 100%; align-items: stretch; min-height: 100vh; }
+.sidebar { 
+    min-width: 260px; max-width: 260px; background: #222e3c; color: #fff; 
+    transition: all 0.3s ease-in-out; display: flex; flex-direction: column; z-index:1000;
+}
+.sidebar.collapsed { margin-left: -260px; }
+
+/* Submenu Logik */
+.submenu { display: none; list-style: none; padding-left: 3rem; background: #1b2631; }
+.submenu.show { display: block; }
+.submenu li a { color: #adb5bd; padding: 0.5rem 0; display: block; text-decoration: none; font-size: 0.9rem; }
+.submenu li a.active { color: #fff; font-weight: bold; }
+
+/* Sidebar Nav */
+.sidebar-nav { list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1; }
+.nav-link { 
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    color: #adb5bd;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+}
+.nav-link:hover, .nav-link.active { color: #fff; background: rgba(255,255,255,0.05); }
+.nav-link i { font-size: 1.2rem;
+    margin-right: 0.75rem;
+    width: 20px;
+    text-align: center;}
+.caret-icon { margin-left: auto; font-size: 0.8rem; transition: transform 0.3s; }
+
+/* Topbar & Content */
+.main { flex: 1; min-width: 0; background: #f5f7fb; display: flex;
+    flex-direction: column;}
+.topbar { background: #fff; padding: 1rem; display: flex; align-items: center; border-bottom: 1px solid #e1e1e1; }
+.sidebar-toggle { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
+.content { padding: 2rem; }
+.sidebar-header {
+    padding: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    background: #1e2936;
+}
