@@ -1,14 +1,6 @@
 /**
  * VantixDash - Global Stylesheet
  * ---------------------------------------------------------
- * Structure:
- * 1. Variables & Reset
- * 2. Layout (Header, Nav, Wrapper)
- * 3. Components (Cards, Buttons, Tables)
- * 4. Forms & Inputs
- * 5. Dashboard Specifics (Badges, Update-Pills)
- * 6. Modals
- * 7. Animations
  */
 
 /* 1. Variables & Reset */
@@ -86,7 +78,7 @@ body {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-.main-button {
+.btn-primary, .main-button {
     background-color: var(--primary-color);
     color: white;
     border: none;
@@ -100,10 +92,9 @@ body {
     text-decoration: none;
     transition: background 0.2s;
 }
+.btn-primary:hover, .main-button:hover { background-color: var(--primary-hover); }
 
-.main-button:hover { background-color: var(--primary-hover); }
-
-.ghost-button {
+.btn-secondary, .ghost-button {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-main);
@@ -114,8 +105,21 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    text-decoration: none;
+    transition: background 0.2s;
 }
+.btn-secondary:hover { background: #f1f5f9; }
+
+.btn-danger {
+    background-color: var(--danger);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+.btn-danger:hover { opacity: 0.9; }
 
 .icon-btn {
     width: 32px;
@@ -130,6 +134,7 @@ body {
     transition: 0.2s;
     font-size: 1.1rem;
 }
+.icon-btn:hover { background: var(--wp-blue); color: white; border-color: var(--wp-blue); }
 
 .alert {
     padding: 1rem;
@@ -139,7 +144,6 @@ body {
     align-items: center;
     gap: 10px;
 }
-
 .alert.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 .alert.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
@@ -179,12 +183,6 @@ body {
 .form-group small { color: var(--text-muted); font-size: 0.85rem; display: block; margin-top: 5px; }
 
 /* 6. Dashboard & Status */
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.5rem;
-}
-
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -194,30 +192,20 @@ body {
     font-size: 0.75rem;
     font-weight: 600;
 }
-
 .status-badge.online { background: #dcfce7; color: #166534; }
 .status-badge.offline { background: #fee2e2; color: #991b1b; }
 
 .status-indicator {
-    display: inline-block; /* Das ist der entscheidende Teil */
+    display: inline-block;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background-color: #ccc; /* Standardfarbe (offline/unbekannt) */
+    background-color: #ccc;
 }
+.status-indicator.online { background-color: var(--success); box-shadow: 0 0 5px rgba(34, 197, 94, 0.5); }
+.status-indicator.offline { background-color: var(--danger); }
+.status-indicator.pending { background-color: var(--warning); }
 
-.status-indicator.online {
-    background-color: #2ecc71; /* Grün */
-    box-shadow: 0 0 5px rgba(46, 204, 113, 0.5);
-}
-
-.status-indicator.offline {
-    background-color: #e74c3c; /* Rot */
-}
-
-.status-indicator.pending {
-    background-color: #f1c40f; /* Gelb */
-}
 .card-footer {
     padding: 1rem 1.25rem;
     background: #f8fafc;
@@ -227,22 +215,6 @@ body {
     border-radius: 0 0 12px 12px;
 }
 
-.action-link {
-    background: none;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--primary-color);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0;
-}
-
-.action-link:hover {
-    color: var(--primary-hover);
-}
 .update-pill {
     flex: 1;
     display: flex;
@@ -253,106 +225,47 @@ body {
     border-radius: 8px;
     color: var(--text-muted);
 }
-
 .update-pill.has-updates { background: #fef3c7; color: #92400e; font-weight: bold; }
+.update-pill.mini { padding: 2px 6px; font-size: 0.75rem; gap: 4px; border-radius: 4px; min-width: 35px; justify-content: center; }
 
 /* 7. Modals */
-.modal-overlay {
+.modal {
+    display: none;
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
+    background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;
 }
 
 .modal-content {
     background: white; border-radius: 12px; width: 90%; max-width: 600px;
     max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    padding: 2rem;
 }
 
-/* 8. Animations */
-.ph-spin { animation: spin 1s linear infinite; display: inline-block; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.update-pill.mini {
-    padding: 2px 6px;
-    font-size: 0.75rem;
-    gap: 4px;
-    border-radius: 4px;
-    min-width: 35px;
-    justify-content: center;
-}
-
-.update-pill.mini i {
-    font-size: 0.85rem;
-}
-
-/* Stil für die Icon-Buttons in der Tabelle */
-.icon-btn {
-    background: var(--bg-light);
-    border: 1px solid var(--border-color);
-    padding: 6px;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--text-color);
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.icon-btn:hover {
-    background: var(--wp-blue);
-    color: white;
-    border-color: var(--wp-blue);
-}
-/* Animation für den Loading-Spinner */
-.animate-spin {
-    display: inline-block;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-/* Visuelles Feedback für deaktivierte Buttons */
-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-/* Toast Container */
+/* 8. Toasts */
 #toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    position: fixed; top: 20px; right: 20px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 10px;
 }
 
-/* Toast Styling */
 .toast {
-    min-width: 250px;
-    padding: 15px 20px;
-    border-radius: 8px;
-    color: white;
-    font-size: 0.9rem;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    min-width: 250px; padding: 15px 20px; border-radius: 8px;
+    color: white; font-size: 0.9rem; font-weight: 500;
+    display: flex; align-items: center; gap: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     animation: slideIn 0.3s ease-out forwards;
     cursor: pointer;
 }
 
 .toast-info { background-color: #4a90e2; border-left: 5px solid #2a6dbd; }
-.toast-success { background-color: #2ecc71; border-left: 5px solid #27ae60; }
-.toast-warning { background-color: #f1c40f; border-left: 5px solid #f39c12; }
-.toast-error { background-color: #e74c3c; border-left: 5px solid #c0392b; }
+.toast-success { background-color: var(--success); border-left: 5px solid #16a34a; }
+.toast-warning { background-color: var(--warning); border-left: 5px solid #d97706; }
+.toast-error { background-color: var(--danger); border-left: 5px solid #dc2626; }
 
-.toast.fade-out {
-    animation: slideOut 0.3s ease-in forwards;
-}
+.toast.fade-out { animation: slideOut 0.3s ease-in forwards; }
+
+/* 9. Animations */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ph-spin, .animate-spin { animation: spin 1s linear infinite; display: inline-block; }
 
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
@@ -363,3 +276,6 @@ button:disabled {
     from { transform: translateX(0); opacity: 1; }
     to { transform: translateX(100%); opacity: 0; }
 }
+
+/* Utilities */
+button:disabled { opacity: 0.6; cursor: not-allowed; }
