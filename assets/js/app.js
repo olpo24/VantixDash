@@ -1,5 +1,6 @@
 /**
- * VantixDash - Main Application JS (Updated with Security & Live-Updates)
+ * VantixDash - Main Application JS
+ * Fokus: Sicherheit, Live-Updates & Massenverarbeitung
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const getRowById = (id) => {
-        // Schützt vor Sonderzeichen in der ID bei der DOM-Suche
         return document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
     };
 
@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
             error: 'ph-warning-octagon'
         };
         
-        // message wird hier sicher als Text eingefügt
         toast.innerHTML = `
             <i class="ph ${icons[type] || 'ph-bell'}" style="font-size: 1.2rem;"></i>
             <span>${escapeHTML(message)}</span>
@@ -71,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnOk = document.getElementById('confirm-ok');
             const btnCancel = document.getElementById('confirm-cancel');
             
-            // Nutzt .innerText für Sicherheit
             document.getElementById('confirm-title').innerText = title;
             document.getElementById('confirm-message').innerText = message;
             
@@ -117,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * ZENTRALER API-HANDLER
      */
-    window.apiCall = async (action, method = 'GET', data = null) => {
-        setLoading(true);
+    window.apiCall = async (action, method = 'GET', data = null, silent = false) => {
+        if (!silent) setLoading(true);
         const url = `api.php?action=${action}`;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
@@ -148,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Netzwerkfehler: Server nicht erreichbar.', 'error');
             return null;
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -158,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('Sitzung abgelaufen. Weiterleitung...', 'warning');
                 setTimeout(() => window.location.href = 'login.php?timeout=1', 1500);
                 break;
-            case 422: // SiteRefreshException Fehler
+            case 422:
                 showToast(message, 'warning');
                 break;
             default:
@@ -166,34 +164,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Window-Functions für die Views ---
+    /**
+     * DASHBOARD ACTIONS
+     */
 
-    window.refreshSite = async (id) => {
-        const result = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
+    // Einzelseite aktualisieren mit DOM-Injektion
+    window.refreshSite = async (id, isBatch = false) => {
+        const row = getRowById(id);
+        const btn = row?.querySelector('.refresh-single');
+        
+        if (btn && !isBatch) btn.classList.add('ph-spin');
+
+        const result = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`, 'GET', null, isBatch);
+        
         if (result && result.success) {
             const site = result.data;
-            showToast(`${site.name} erfolgreich aktualisiert.`, 'success');
+            if (!isBatch) showToast(`${site.name} aktualisiert.`, 'success');
             
-            // LIVE-UPDATE der Tabellenzeile
-            const row = getRowById(id);
             if (row) {
-                // Nutzt .textContent für Sicherheit gegen XSS
+                // Version & Status live updaten
                 const wpCell = row.querySelector('.wp-version');
-                const phpCell = row.querySelector('.php-version');
-                const lastCheckCell = row.querySelector('.last-check');
+                const statusIndicator = row.querySelector('.status-indicator');
                 
-                if (wpCell) wpCell.textContent = site.wp_version;
-                if (phpCell) phpCell.textContent = site.php;
-                if (lastCheckCell) lastCheckCell.textContent = site.last_check;
-                
-                // Status-Badge Update
-                const statusCell = row.querySelector('.status-badge');
-                if (statusCell) {
-                    statusCell.className = `status-badge status-${site.status}`;
-                    statusCell.textContent = site.status.toUpperCase();
+                if (wpCell) wpCell.textContent = 'v' + site.wp_version;
+                if (statusIndicator) {
+                    statusIndicator.className = `status-indicator status-badge ${site.status}`;
+                    statusIndicator.title = `Status: ${site.status}`;
+                }
+
+                // Update-Zahlen live updaten
+                if (site.updates) {
+                    row.querySelector('.update-count-core').textContent = site.updates.core;
+                    row.querySelector('.update-count-plugins').textContent = site.updates.plugins;
+                    row.querySelector('.update-count-themes').textContent = site.updates.themes;
+                    
+                    // Pill-Farben anpassen
+                    row.querySelectorAll('.update-pill').forEach(pill => {
+                        const count = parseInt(pill.querySelector('span').textContent);
+                        pill.classList.toggle('has-updates', count > 0);
+                    });
                 }
             }
         }
+        if (btn) btn.classList.remove('ph-spin');
+        return result;
+    };
+
+    // Alle Seiten nacheinander prüfen
+    window.refreshAllSites = async () => {
+        const rows = document.querySelectorAll('tr[data-id]');
+        const icon = document.getElementById('refresh-all-icon');
+        
+        if (icon) icon.classList.add('ph-spin');
+        showToast('Massenprüfung gestartet...', 'info');
+
+        for (const row of rows) {
+            const id = row.dataset.id;
+            row.style.backgroundColor = 'var(--bg-light)'; // Optisches Feedback
+            await window.refreshSite(id, true);
+            row.style.backgroundColor = '';
+        }
+
+        if (icon) icon.classList.remove('ph-spin');
+        showToast('Alle Seiten wurden geprüft.', 'success');
     };
 
     window.openDetails = async (id) => {
@@ -201,36 +234,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalBody = document.getElementById('modal-body');
         if (!modal || !modalBody) return;
 
-        modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
+        modalBody.innerHTML = '<div class="text-center p-4"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i></div>';
         modal.style.display = 'flex';
 
         const result = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
-        if (result && result.success && result.data) {
+        if (result && result.success) {
             const site = result.data;
             document.getElementById('modal-title').innerText = `Details: ${site.name}`;
-            
             modalBody.innerHTML = `
-                <div class="site-info-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px; font-size:0.9rem;">
-                    <div class="card" style="padding:10px; background:var(--bg-color);"><strong>WordPress:</strong> ${escapeHTML(site.wp_version)}</div>
-                    <div class="card" style="padding:10px; background:var(--bg-color);"><strong>PHP:</strong> ${escapeHTML(site.php)}</div>
+                <div class="site-info-grid">
+                    <div class="info-card"><strong>WP:</strong> ${escapeHTML(site.wp_version)}</div>
+                    <div class="info-card"><strong>PHP:</strong> ${escapeHTML(site.php || 'N/A')}</div>
+                    <div class="info-card"><strong>URL:</strong> ${escapeHTML(site.url)}</div>
+                    <div class="info-card"><strong>Letzter Check:</strong> ${escapeHTML(site.last_check)}</div>
                 </div>
             `;
         }
     };
 
-    // ... Restliche Funktionen (closeModal, confirm2FA, etc.) bleiben gleich, 
-    // sollten aber encodeURIComponent(id) bei API-Calls nutzen.
+    window.loginToSite = async (id) => {
+        const result = await apiCall(`get_login_url&id=${encodeURIComponent(id)}`);
+        if (result && result.url) {
+            window.open(result.url, '_blank');
+        }
+    };
+
+    window.clearLogs = async () => {
+        const confirmed = await showConfirm('Logs löschen', 'Sollen alle Einträge entfernt werden?', { isDanger: true });
+        if (confirmed) {
+            const result = await apiCall('clear_logs');
+            if (result?.success) {
+                showToast('Logs geleert.', 'success');
+                if (typeof window.loadLogs === 'function') window.loadLogs();
+            }
+        }
+    };
 
     window.closeModal = () => {
-        const detailsModal = document.getElementById('details-modal');
-        const confirmModal = document.getElementById('confirm-modal');
-        if (detailsModal) detailsModal.style.display = 'none';
-        if (confirmModal) confirmModal.style.display = 'none';
+        document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
     };
 
     window.onclick = (e) => { 
-        if (e.target.classList.contains('modal')) {
-            e.target.style.display = 'none'; 
-        }
+        if (e.target.classList.contains('modal-overlay')) closeModal(); 
     };
 });
