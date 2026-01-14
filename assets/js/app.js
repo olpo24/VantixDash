@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * ZENTRALER API-HANDLER
-     * Ersetzt redundante fetch-Aufrufe und sorgt für globales Error-Handling
      */
     const apiCall = async (action, method = 'GET', data = null) => {
         const url = `api.php?action=${action}`;
@@ -46,14 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     const handleHttpError = (status, message) => {
         switch (status) {
-            case 401: // Session Timeout
+            case 401: 
                 alert('Sitzung abgelaufen. Bitte logge dich erneut ein.');
                 window.location.href = 'login.php?timeout=1';
                 break;
-            case 403: // CSRF
+            case 403: 
                 showToast('Sicherheitsfehler: CSRF Token ungültig. Bitte Seite neu laden.', 'error');
                 break;
-            case 429: // Rate Limit
+            case 429: 
                 showToast('Zu viele Anfragen. Bitte warte kurz.', 'warning');
                 break;
             default:
@@ -62,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const showToast = (message, type = 'info') => {
-        // Simpler Alert für den Moment, kann durch Toast-Lib ersetzt werden
         console.log(`[${type.toUpperCase()}] ${message}`);
         if(type === 'error') alert(message);
     };
@@ -91,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Plugins
             html += `<h4 style="margin-bottom:10px; display:flex; align-items:center; gap:8px;"><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>`;
             if (site.plugin_list && site.plugin_list.length > 0) {
                 html += `<div class="plugin-list" style="display:grid; gap:8px; margin-bottom:20px;">`;
@@ -104,19 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 html += `</div>`;
             } else { html += `<p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:20px;">Alle Plugins aktuell.</p>`; }
-
-            // Themes
-            html += `<h4 style="margin-bottom:10px; display:flex; align-items:center; gap:8px;"><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>`;
-            if (site.theme_list && site.theme_list.length > 0) {
-                html += `<div class="theme-list" style="display:grid; gap:8px;">`;
-                site.theme_list.forEach(theme => {
-                    html += `<div class="item-row" style="padding:10px; border:1px solid var(--border-color); border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                                <div><div style="font-weight:600;">${theme.name}</div><div style="font-size:0.8rem; color:var(--text-muted);">${theme.old_version}</div></div>
-                                <div style="text-align:right;"><span class="badge" style="background:rgba(255,107,107,0.1); color:#ff6b6b; padding:4px 8px; border-radius:5px; font-size:0.8rem; font-weight:600;"><i class="ph ph-arrow-right"></i> ${theme.new_version}</span></div>
-                             </div>`;
-                });
-                html += `</div>`;
-            } else { html += `<p style="color:var(--text-muted); font-size:0.9rem;">Alle Themes aktuell.</p>`; }
 
             modalBody.innerHTML = html;
         }
@@ -166,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (rows.length === 0) return;
 
         if (refreshIcon) refreshIcon.classList.add('ph-spin');
-        const promises = Array.from(rows).map(row => refreshSite(row.getAttribute('data-id')));
+        const promises = Array.from(rows).map(row => window.refreshSite(row.getAttribute('data-id')));
 
         await Promise.all(promises);
         if (refreshIcon) refreshIcon.classList.remove('ph-spin');
@@ -214,12 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.close2FAModal = () => document.getElementById('2fa-setup-modal').style.display = 'none';
 
-    // Globaler Klick-Handler für Modals
-    window.onclick = (event) => {
-        if (event.target.classList.contains('modal')) event.target.style.display = 'none';
-    };
-	
-	window.loadLogs = async () => {
+    /**
+     * LOG-VIEWER LOGIK
+     */
+    window.loadLogs = async () => {
         const viewer = document.getElementById('log-viewer');
         if (!viewer) return;
         
@@ -228,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (result && result.success) {
             viewer.innerText = result.logs || 'Keine Einträge.';
+            viewer.scrollTop = viewer.scrollHeight; // Auto-Scroll nach unten
         }
     };
 
@@ -235,7 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('Möchtest du alle Log-Einträge wirklich löschen?')) return;
         const result = await apiCall('clear_logs');
         if (result && result.success) {
-            loadLogs();
+            window.loadLogs();
         }
+    };
+
+    // Globaler Klick-Handler für Modals
+    window.onclick = (event) => {
+        if (event.target.classList.contains('modal')) event.target.style.display = 'none';
     };
 });
