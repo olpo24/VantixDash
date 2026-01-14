@@ -1,10 +1,14 @@
 <?php
 declare(strict_types=1);
+
 namespace VantixDash;
+
+use Exception;
+
 class SiteService {
     private string $file;
     private ConfigService $config;
-    private Logger $logger; // Logger hinzugefügt
+    private Logger $logger;
     private array $sites = [];
 
     /**
@@ -15,7 +19,7 @@ class SiteService {
     public function __construct(string $file, ConfigService $config, Logger $logger) {
         $this->file = $file;
         $this->config = $config;
-        $this->logger = $logger; // Initialisierung
+        $this->logger = $logger;
         $this->load();
     }
 
@@ -79,7 +83,6 @@ class SiteService {
                 try {
                     $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
                     
-                    // Header Injection verhindern & Timeout laden
                     $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
                     $timeout = $this->config->getTimeout('site_check');
 
@@ -106,7 +109,6 @@ class SiteService {
                         throw new Exception("Ungültiges JSON-Format oder fehlende Daten von WordPress");
                     }
 
-                    // Erfolgreiche Daten-Zuweisung
                     $site['status'] = 'online';
                     $site['wp_version'] = (string)$data['version'];
                     $site['php'] = (string)($data['php'] ?? 'unknown');
@@ -131,7 +133,6 @@ class SiteService {
                     return $site;
 
                 } catch (Exception $e) {
-                    // Logging des Fehlers
                     $this->logger->error("WordPress API Request fehlgeschlagen", [
                         'site_id' => $id,
                         'url'     => $apiUrl ?? $site['url'],
@@ -156,16 +157,30 @@ class SiteService {
     }
 
     /**
-     * Fügt eine neue Seite hinzu
+     * Fügt eine neue Seite hinzu mit strikter Validierung
+     * @throws Exception Wenn die URL ungültig ist
      */
     public function addSite(string $name, string $url): array|false {
-        $apiKey = bin2hex(random_bytes(16)); 
+        // 1. URL Validierung (Formal & Protokoll)
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            throw new Exception('Die angegebene URL ist formal ungültig.');
+        }
+
+        if (!preg_match('/^https?:\/\//i', $url)) {
+            throw new Exception('Die URL muss mit http:// oder https:// beginnen.');
+        }
+
+        // 2. Daten bereinigen (XSS Schutz)
+        $cleanName = strip_tags($name);
+        $cleanUrl = rtrim($url, '/');
         
+        $apiKey = bin2hex(random_bytes(16)); 
         $id = bin2hex(random_bytes(6));
+
         $newSite = [
             'id' => $id,
-            'name' => htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
-            'url' => rtrim($url, '/'),
+            'name' => htmlspecialchars($cleanName, ENT_QUOTES, 'UTF-8'),
+            'url' => $cleanUrl,
             'api_key' => $apiKey,
             'status' => 'pending',
             'wp_version' => '0.0.0',
