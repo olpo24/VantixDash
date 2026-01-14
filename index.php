@@ -1,6 +1,6 @@
 <?php
 /**
- * index.php - Zentraler Router und Service-Initialisierung
+ * index.php - Zentraler Router und Service-Initialisierung mit PSR-4
  */
 declare(strict_types=1);
 
@@ -23,17 +23,26 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 // 2. SESSION STARTEN
 session_start();
 
-// 3. SERVICES LADEN
-require_once __DIR__ . '/services/Logger.php';
-require_once __DIR__ . '/services/ConfigService.php';
-require_once __DIR__ . '/services/SiteService.php';
+/**
+ * 3. AUTOLOADER LADEN
+ */
+require_once __DIR__ . '/autoload.php';
 
-// 4. INITIALISIERUNG
+// Namespaces importieren
+use VantixDash\Logger;
+use VantixDash\ConfigService;
+use VantixDash\SiteService;
+
+/**
+ * 4. INITIALISIERUNG
+ */
 $logger = new Logger();
 $configService = new ConfigService();
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
 
-// 5. SESSION-TIMEOUT PRÜFUNG
+/**
+ * 5. SESSION-TIMEOUT PRÜFUNG
+ */
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $sessionTimeout = $configService->getTimeout('session');
 
@@ -54,7 +63,9 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     $_SESSION['last_activity'] = time();
 }
 
-// 6. AUTH-CHECK
+/**
+ * 6. AUTH-CHECK
+ */
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header('Location: login.php');
     exit;
@@ -65,7 +76,9 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// 7. ROUTING
+/**
+ * 7. ROUTING
+ */
 $view = $_GET['view'] ?? 'dashboard';
 
 $allowedViews = [
