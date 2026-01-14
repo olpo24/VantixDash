@@ -1,207 +1,218 @@
 <?php
+/**
+ * api.php - Zentraler AJAX-Endpunkt für VantixDash
+ */
 declare(strict_types=1);
 
-class SiteService {
-    private string $file;
-    private ConfigService $config;
-    private array $sites = [];
+session_start();
 
-    /**
-     * @param string $file Pfad zur sites.json
-     * @param ConfigService $config Instanz des ConfigService
-     */
-    public function __construct(string $file, ConfigService $config) {
-        $this->file = $file;
-        $this->config = $config;
-        $this->load();
-    }
+// 1. HELPER FUNKTIONEN (Müssen vor der Nutzung definiert sein)
 
-    /**
-     * Lädt die Seiten aus der JSON-Datei
-     */
-    private function load(): void {
-        if (file_exists($this->file)) {
-            $content = file_get_contents($this->file);
-            if ($content !== false) {
-                $data = json_decode($content, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $this->sites = is_array($data) ? $data : [];
-                }
-            }
-        }
-    }
-
-    /**
-     * Speichert die aktuellen Seiten atomar in die JSON-Datei
-     */
-    public function save(?array $sites = null): bool {
-        if ($sites !== null) {
-            $this->sites = $sites;
-        }
-
-        $jsonContent = json_encode(array_values($this->sites), JSON_PRETTY_PRINT);
-        if ($jsonContent === false) {
-            return false;
-        }
-
-        // 1. Temporären Dateinamen generieren (Schutz vor Race Conditions)
-        $tempFile = $this->file . '.tmp.' . bin2hex(random_bytes(8));
-
-        // 2. In Temp-Datei schreiben mit exklusivem Lock
-        if (file_put_contents($tempFile, $jsonContent, LOCK_EX) === false) {
-            return false;
-        }
-
-        // 3. Atomares Ersetzen (Rename)
-        if (!rename($tempFile, $this->file)) {
-            if (file_exists($tempFile)) {
-                unlink($tempFile);
-            }
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Gibt alle geladenen Seiten zurück
-     */
-    public function getAll(): array { 
-        return $this->sites; 
-    }
-
-    /**
-     * Aktualisiert die Daten einer WordPress-Seite via API
-     */
-    public function refreshSiteData(string $id): array|false {
-        foreach ($this->sites as &$site) {
-            if ($site['id'] === $id) {
-                $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
-                
-                // Header Injection verhindern & Timeout laden
-                $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
-                $timeout = $this->config->getTimeout('site_check');
-
-                $options = [
-                    'http' => [
-                        'method' => 'GET',
-                        'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
-                                    "User-Agent: VantixDash-Monitor/1.0\r\n",
-                        'timeout' => $timeout,
-                        'ignore_errors' => true
-                    ]
-                ];
-                
-                $context = stream_context_create($options);
-                $response = @file_get_contents($apiUrl, false, $context);
-
-                if ($response !== false) {
-                    $data = json_decode($response, true);
-                    
-                    if (json_last_error() === JSON_ERROR_NONE && isset($data['version'])) {
-                        $site['status'] = 'online';
-                        $site['wp_version'] = (string)$data['version'];
-                        $site['php'] = (string)($data['php'] ?? 'unknown');
-                        
-                        $site['updates'] = [
-                            'core'    => (int)($data['core'] ?? 0),
-                            'plugins' => (int)($data['plugins'] ?? 0),
-                            'themes'  => (int)($data['themes'] ?? 0)
-                        ];
-
-                        $site['plugin_list'] = (array)($data['plugin_list'] ?? []);
-                        $site['theme_list']  = (array)($data['theme_list'] ?? []);
-                        
-                        $site['details'] = [
-                            'core' => [],
-                            'plugins' => $site['plugin_list'],
-                            'themes' => $site['theme_list']
-                        ];
-
-                        $site['last_check'] = date('Y-m-d H:i:s');
-                        $this->save();
-                        return $site;
-                    }
-                }
-                
-                $site['status'] = 'offline';
-                $site['last_check'] = date('Y-m-d H:i:s');
-                $this->save();
-                return false;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Validiert das Format des API Keys
-     */
-    private function isValidApiKey(string $key): bool {
-        return (bool)preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
-    }
-
-    /**
-     * Fügt eine neue Seite hinzu
-     */
-    public function addSite(string $name, string $url): array|false {
-        $apiKey = bin2hex(random_bytes(16)); 
-        
-        if (!$this->isValidApiKey($apiKey)) {
-            return false; 
-        }
-
-        $id = bin2hex(random_bytes(6)); // Sicherere ID als uniqid()
-        $newSite = [
-            'id' => $id,
-            'name' => htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
-            'url' => rtrim($url, '/'),
-            'api_key' => $apiKey,
-            'status' => 'pending',
-            'wp_version' => '0.0.0',
-            'updates' => ['core' => 0, 'plugins' => 0, 'themes' => 0],
-            'last_check' => date('Y-m-d H:i:s'),
-            'plugin_list' => [],
-            'theme_list' => []
-        ];
-
-        $this->sites[] = $newSite;
-        return $this->save() ? $newSite : false;
-    }
-
-    /**
-     * Löscht eine Seite anhand der ID
-     */
-    public function deleteSite(string $id): bool {
-        $originalCount = count($this->sites);
-        $this->sites = array_filter($this->sites, fn($s) => $s['id'] !== $id);
-        
-        if (count($this->sites) === $originalCount) {
-            return false;
-        }
-
-        return $this->save();
-    }
-	// In SiteService.php
-
-private Logger $logger;
-
-public function __construct(string $sitesPath, ConfigService $config, Logger $logger) {
-    $this->sitesPath = $sitesPath;
-    $this->config = $config;
-    $this->logger = $logger;
+/**
+ * Sendet eine standardisierte Fehlerantwort und bricht ab.
+ */
+function jsonError(int $httpCode, string $message): never {
+    http_response_code($httpCode);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => false,
+        'message' => $message,
+        'code'    => $httpCode
+    ]);
+    exit;
 }
 
-public function refreshSiteData(string $id): ?array {
-    try {
-        // ... API Request Logik ...
-    } catch (Exception $e) {
-        // Statt echo: Professionelles Logging mit Kontext
-        $this->logger->error("WordPress API Request fehlgeschlagen", [
-            'site_id' => $id,
-            'message' => $e->getMessage(),
-            'file'    => $e->getFile(),
-            'line'    => $e->getLine()
-        ]);
-        return null;
+/**
+ * Sendet eine standardisierte Erfolgsantwort.
+ */
+function jsonSuccess(array $data = [], string $message = ''): void {
+    header('Content-Type: application/json');
+    echo json_encode(array_merge([
+        'success' => true,
+        'message' => $message
+    ], $data));
+    exit;
+}
+
+/**
+ * Portabler Ersatz für getallheaders()
+ */
+function getRequestHeader(string $name): string {
+    $name = strtoupper(str_replace('-', '_', $name));
+    return $_SERVER['HTTP_' . $name] ?? '';
+}
+
+// 2. SESSION & TIMEOUT PRÜFUNG
+if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
+    // ConfigService wird hier noch nicht benötigt, wir nutzen einen statischen Fallback oder laden ihn gleich
+    $timeout = 3600; 
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout)) {
+        session_unset();
+        session_destroy();
+        jsonError(401, 'Session abgelaufen. Bitte neu einloggen.');
     }
+    $_SESSION['last_activity'] = time();
+}
+
+// 3. SERVICES & LIBS LADEN
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+require_once __DIR__ . '/services/Logger.php';
+require_once __DIR__ . '/services/ConfigService.php';
+require_once __DIR__ . '/services/SiteService.php';
+
+$logger = new Logger(); // Nutzt Standard-Pfad data/app.log
+$configService = new ConfigService();
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
+
+$rateLimiter = new RateLimiter();
+$ga = new PHPGangsta_GoogleAuthenticator();
+$configService = new ConfigService();
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService);
+
+// 4. GLOBALER SCHUTZ (Rate Limiting & Auth)
+
+// 30 Anfragen pro Minute pro IP
+if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'], 30, 60)) {
+    jsonError(429, 'Zu viele Anfragen. Bitte kurz warten.');
+}
+
+// Authentifizierung
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    jsonError(401, 'Nicht autorisiert');
+}
+
+$action = $_GET['action'] ?? '';
+
+// 5. CSRF-SCHUTZ für schreibende Aktionen (POST)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $token = getRequestHeader('X-CSRF-TOKEN') ?: ($_POST['csrf_token'] ?? '');
+    if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        jsonError(403, 'CSRF-Token ungültig oder abgelaufen.');
+    }
+}
+
+// 6. ROUTING DER AKTIONEN
+switch ($action) {
+
+    case 'refresh_site':
+        $id = $_GET['id'] ?? '';
+        if (empty($id)) jsonError(400, 'ID fehlt');
+        
+        $updatedSite = $siteService->refreshSiteData($id);
+        if ($updatedSite) {
+            jsonSuccess(['data' => $updatedSite], 'Seite erfolgreich aktualisiert.');
+        } else {
+            jsonError(500, 'Verbindung zur WordPress-Seite fehlgeschlagen.');
+        }
+        break;
+
+    case 'login_site':
+        $id = $_GET['id'] ?? '';
+        if (empty($id)) jsonError(400, 'ID fehlt');
+
+        $sites = $siteService->getAll();
+        $targetSite = null;
+        foreach ($sites as $site) {
+            if ($site['id'] === $id) {
+                $targetSite = $site;
+                break;
+            }
+        }
+
+        if ($targetSite) {
+            $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
+            $safeApiKey = preg_replace('/[\r\n]/', '', (string)$targetSite['api_key']);
+            
+            $options = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
+                                "User-Agent: VantixDash-Monitor/1.0\r\n",
+                    'timeout' => $configService->getTimeout('api'),
+                    'ignore_errors' => true
+                ]
+            ];
+            
+            $context = stream_context_create($options);
+            $response = @file_get_contents($apiUrl, false, $context);
+            
+            if ($response === false) {
+                jsonError(502, 'Verbindung zum Child-Plugin fehlgeschlagen.');
+            }
+
+            $data = json_decode($response, true);
+            if (isset($data['login_url'])) {
+                jsonSuccess(['login_url' => $data['login_url']]);
+            } else {
+                jsonError(500, $data['message'] ?? 'Keine Login-URL erhalten.');
+            }
+        } else {
+            jsonError(404, 'Seite nicht gefunden.');
+        }
+        break;
+
+    case 'add_site':
+        $name = trim($_POST['name'] ?? '');
+        $url  = trim($_POST['url'] ?? '');
+
+        if (strlen($name) < 2 || strlen($url) > 255) jsonError(400, 'Eingabedaten ungültig.');
+        if (!filter_var($url, FILTER_VALIDATE_URL)) jsonError(400, 'Ungültiges URL-Format.');
+
+        $newSite = $siteService->addSite($name, $url);
+        $newSite ? jsonSuccess(['site' => $newSite], 'Seite hinzugefügt.') : jsonError(500, 'Fehler beim Speichern.');
+        break;
+
+    case 'delete_site':
+        $id = $_POST['id'] ?? '';
+        $siteService->deleteSite($id) ? jsonSuccess([], 'Gelöscht.') : jsonError(500, 'Löschen fehlgeschlagen.');
+        break;
+
+    case 'update_profile':
+        $username = $_POST['username'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $configService->updateUser($username, $email) ? jsonSuccess() : jsonError(500, 'Update fehlgeschlagen.');
+        break;
+
+    case 'update_password':
+        $new_pw = $_POST['new_password'] ?? '';
+        $confirm = $_POST['confirm_password'] ?? '';
+        
+        if ($new_pw !== $confirm || strlen($new_pw) < 8) {
+            jsonError(400, 'Passwörter ungültig oder zu kurz.');
+        }
+        
+        $hash = password_hash($new_pw, PASSWORD_DEFAULT);
+        $configService->updatePassword($hash) ? jsonSuccess([], 'Passwort geändert.') : jsonError(500, 'Fehler beim Speichern.');
+        break;
+
+    case 'setup_2fa':
+        $secret = $ga->createSecret();
+        $_SESSION['temp_2fa_secret'] = $secret;
+        $safeUser = (string)($_SESSION['username'] ?? 'User');
+        $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash (' . $safeUser . ')');
+        
+        jsonSuccess(['qrCodeUrl' => $qrCodeUrl, 'secret' => $secret]);
+        break;
+
+    case 'verify_2fa':
+        $code = $_POST['code'] ?? '';
+        $secret = $_SESSION['temp_2fa_secret'] ?? '';
+        
+        if ($ga->verifyCode($secret, $code, 2)) {
+            $configService->update2FA(true, $secret);
+            unset($_SESSION['temp_2fa_secret']);
+            jsonSuccess([], '2FA aktiviert.');
+        } else {
+            jsonError(400, 'Ungültiger Code.');
+        }
+        break;
+
+    case 'disable_2fa':
+        $configService->update2FA(false, null);
+        jsonSuccess([], '2FA deaktiviert.');
+        break;
+
+    default:
+        jsonError(404, 'Unbekannte Aktion');
+        break;
 }
