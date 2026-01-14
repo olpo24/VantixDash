@@ -28,6 +28,10 @@ class MailService {
             // SMTP Einstellungen
             $mail->isSMTP();
 			$mail->Timeout = 10;
+			$mail->SMTPDebug = 2; // Aktiviere Debug-Ausgabe
+$mail->Debugoutput = function($str, $level) {
+    file_put_contents(__DIR__ . '/../data/smtp_debug.log', $str . PHP_EOL, FILE_APPEND);
+};
             $mail->Host       = $smtpSettings['host'];
             $mail->SMTPAuth   = true;
             $mail->Username   = $smtpSettings['user'];
