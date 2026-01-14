@@ -1,9 +1,7 @@
 <?php
 /**
  * views/dashboard.php
- * Zentrales Dashboard mit Live-Status und Update-Übersicht
  */
-
 if (!isset($siteService)) exit;
 $sites = $siteService->getAll();
 ?>
