@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * TOAST NOTIFICATION SYSTEM
      */
-    const showToast = (message, type = 'info', duration = 4000) => {
+    window.showToast = (message, type = 'info', duration = 4000) => {
         let container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
