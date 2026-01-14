@@ -218,4 +218,24 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onclick = (event) => {
         if (event.target.classList.contains('modal')) event.target.style.display = 'none';
     };
+	
+	window.loadLogs = async () => {
+        const viewer = document.getElementById('log-viewer');
+        if (!viewer) return;
+        
+        viewer.innerText = 'Lade Logs...';
+        const result = await apiCall('get_logs');
+        
+        if (result && result.success) {
+            viewer.innerText = result.logs || 'Keine Einträge.';
+        }
+    };
+
+    window.clearLogs = async () => {
+        if (!confirm('Möchtest du alle Log-Einträge wirklich löschen?')) return;
+        const result = await apiCall('clear_logs');
+        if (result && result.success) {
+            loadLogs();
+        }
+    };
 });
