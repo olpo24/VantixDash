@@ -20,6 +20,22 @@
 </div>
 
 <script>
-// Da wir app.js nutzen, rufen wir die Funktion beim Laden auf
-document.addEventListener('DOMContentLoaded', () => loadLogs());
+/**
+ * Wartet, bis die app.js die Funktionen am window-Objekt registriert hat
+ */
+function initLogs() {
+    if (typeof window.loadLogs === 'function') {
+        window.loadLogs();
+    } else {
+        // Falls app.js noch nicht bereit ist, in 50ms erneut prüfen
+        setTimeout(initLogs, 50);
+    }
+}
+
+// Startet den Prozess, sobald das HTML bereit ist
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLogs);
+} else {
+    initLogs();
+}
 </script>
