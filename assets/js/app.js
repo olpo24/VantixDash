@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * ZENTRALER API-HANDLER
      */
-    const apiCall = async (action, method = 'GET', data = null) => {
+    window.apiCall = async (action, method = 'GET', data = null) => {
         setLoading(true);
         const url = `api.php?action=${action}`;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
