@@ -4,99 +4,116 @@ declare(strict_types=1);
 namespace VantixDash;
 
 /**
- * ConfigService - Zentrale Verwaltung der Dashboard-Einstellungen
+ * ConfigService - Optimierte Verwaltung mit Static Caching
  */
 class ConfigService {
     private array $settings = [];
     private array $versionData = [];
     private string $configPath;
+    
+    // Statischer Cache, um Disk-I/O innerhalb eines Requests zu minimieren
+    private static ?array $settingsCache = null;
+    private static ?array $versionCache = null;
 
     public function __construct() {
         $basePath = dirname(__DIR__) . '/';
         $this->configPath = $basePath . 'data/config.json';
         
-        // 1. Config laden (Sichere Prüfung)
+        $this->loadConfig();
+        $this->loadVersion($basePath);
+    }
+
+    /**
+     * Lädt die Konfiguration mit statischem Caching
+     */
+    private function loadConfig(): void {
+        if (self::$settingsCache !== null) {
+            $this->settings = self::$settingsCache;
+            return;
+        }
+
         if (file_exists($this->configPath)) {
             $content = file_get_contents($this->configPath);
             if ($content !== false) {
                 $decoded = json_decode($content, true);
                 $this->settings = is_array($decoded) ? $decoded : [];
+                self::$settingsCache = $this->settings;
             }
         }
+    }
 
-        // 2. Version laden
+    /**
+     * Lädt die Versionsdaten mit statischem Caching
+     */
+    private function loadVersion(string $basePath): void {
+        if (self::$versionCache !== null) {
+            $this->versionData = self::$versionCache;
+            return;
+        }
+
         $versionFile = $basePath . 'version.php';
         if (file_exists($versionFile)) {
             $this->versionData = include $versionFile;
             if (!is_array($this->versionData)) {
                 $this->versionData = [];
             }
+            self::$versionCache = $this->versionData;
         }
     }
 
     /**
-     * Holt eine Einstellung mit einem Fallback-Standardwert
+     * Holt eine Einstellung mit Fallback
      */
     public function get(string $key, $default = null) {
         return $this->settings[$key] ?? $default;
     }
 
     /**
-     * Setzt einen Wert im Speicher (ohne sofort zu speichern)
+     * Setzt einen Wert im Speicher und aktualisiert den Cache
      */
     public function set(string $key, $value): void {
         $this->settings[$key] = $value;
+        self::$settingsCache = $this->settings;
     }
 
     /**
-     * Hilfsmethode für Timeouts (zentrale Verwaltung)
+     * Hilfsmethode für Timeouts
      */
     public function getTimeout(string $type): int {
         $defaults = [
-            'api'            => 10,
-            'site_check'     => 15,
-            'session'        => 3600,
-            'rate_limit'     => 300
+            'api'        => 10,
+            'site_check' => 15,
+            'session'    => 3600,
+            'rate_limit' => 300
         ];
-        
         return (int)$this->get("timeout_$type", $defaults[$type] ?? 10);
     }
 
-    /**
-     * Gibt die App-Version zurück
-     */
     public function getVersion(): string {
         return (string)($this->versionData['version'] ?? '0.0.0');
     }
 
-    /**
-     * Gibt alle Einstellungen zurück
-     */
     public function getAll(): array {
         return $this->settings;
     }
 
     /**
-     * Speichert die aktuellen Einstellungen permanent (Atomares Schreiben)
+     * Speichert die Einstellungen und invalidiert/aktualisiert den Cache
      */
     public function save(): bool {
         $jsonContent = json_encode($this->settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        if ($jsonContent === false) {
-            return false;
-        }
+        if ($jsonContent === false) return false;
 
-        // Atomares Speichern: In Temp-Datei schreiben und dann umbenennen
         $tempFile = $this->configPath . '.tmp.' . bin2hex(random_bytes(8));
         if (file_put_contents($tempFile, $jsonContent, LOCK_EX) !== false) {
-            return rename($tempFile, $this->configPath);
+            if (rename($tempFile, $this->configPath)) {
+                self::$settingsCache = $this->settings; // Cache synchron halten
+                return true;
+            }
         }
-        
         return false;
     }
 
-    /**
-     * Gibt die für das Profil relevanten Daten zurück
-     */
     public function getUserData(): array {
         return [
             'username'    => (string)$this->get('username', ''),
@@ -105,9 +122,6 @@ class ConfigService {
         ];
     }
 
-    /**
-     * Aktualisiert Username und Email mit Sanitizing
-     */
     public function updateUser(string $username, string $email): bool {
         $this->settings['username'] = htmlspecialchars(strip_tags(trim($username)), ENT_QUOTES, 'UTF-8');
         $sanitizedEmail = filter_var($email, FILTER_VALIDATE_EMAIL);
@@ -115,85 +129,48 @@ class ConfigService {
         return $this->save();
     }
 
-    /**
-     * Aktualisiert den Passwort-Hash
-     */
     public function updatePassword(string $hash): bool {
         $this->settings['password_hash'] = $hash;
         return $this->save();
     }
 
-    /**
-     * 2FA Status und Secret setzen
-     */
     public function update2FA(bool $enabled, ?string $secret = null): bool {
         $this->settings['2fa_enabled'] = $enabled;
-        if ($secret !== null) {
-            $this->settings['2fa_secret'] = $secret;
-        }
+        if ($secret !== null) $this->settings['2fa_secret'] = $secret;
         return $this->save();
     }
 
-    /**
-     * Aktualisiert das Cron-Secret
-     */
     public function updateCronSecret(string $token): bool {
         $this->set('cron_secret', $token);
         return $this->save();
     }
     
-    /**
-     * Erzeugt einen Reset-Token-Hash und setzt das Ablaufdatum
-     */
     public function setResetToken(string $token): bool {
-        // Wir speichern nur den SHA256 Hash des Tokens in der config.json
         $this->set('reset_token', hash('sha256', $token));
-        $this->set('reset_expires', time() + 1800); // 30 Minuten Gültigkeit
+        $this->set('reset_expires', time() + 1800);
         return $this->save();
     }
 
-    /**
-     * Verifiziert den Token gegen den gespeicherten Hash
-     * Nutzt hash_equals gegen Timing-Attacks.
-     */
     public function verifyResetToken(string $token): bool {
         $storedHash = $this->get('reset_token');
         $expires = (int)$this->get('reset_expires', 0);
-        
-        if (!$storedHash || time() > $expires) {
-            return false;
-        }
-        
-        // Vergleicht den Hash des übergebenen Tokens zeitkonstant mit dem gespeicherten Hash
+        if (!$storedHash || time() > $expires) return false;
         return hash_equals((string)$storedHash, hash('sha256', $token));
     }
 
-    /**
-     * Löscht Reset-Daten nach Verwendung oder Fehler
-     */
     public function clearResetToken(): void {
         unset($this->settings['reset_token']);
         unset($this->settings['reset_expires']);
         $this->save();
     }
 
-    /**
-     * Holt die SMTP-Einstellungen aus den Settings
-     */
     public function getSmtpConfig(): array {
         return $this->settings['smtp'] ?? [
-            'host' => '',
-            'user' => '',
-            'pass' => '',
-            'port' => 587,
-            'from_email' => '',
-            'from_name' => 'VantixDash'
+            'host' => '', 'user' => '', 'pass' => '', 'port' => 587,
+            'from_email' => '', 'from_name' => 'VantixDash'
         ];
     }
 
-    /**
-     * Aktualisiert die SMTP-Sektion und speichert
-     */
     public function updateSmtpConfig(array $newData): bool {
         $this->settings['smtp'] = [
             'host'       => (string)($newData['host'] ?? ''),
@@ -203,7 +180,6 @@ class ConfigService {
             'from_email' => (string)($newData['from_email'] ?? ''),
             'from_name'  => (string)($newData['from_name'] ?? 'VantixDash')
         ];
-
         return $this->save();
     }
 }
