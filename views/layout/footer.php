@@ -11,7 +11,19 @@
         </div>
     </div>
 </div>
-
+<div id="details-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card shadow-lg">
+        <div class="modal-header">
+            <h3 id="modal-title">Instanz-Details</h3>
+            <button onclick="closeModal()" class="close-btn"><i class="ph ph-x"></i></button>
+        </div>
+        <div id="modal-body">
+            <div class="text-center p-5">
+                <i class="ph ph-circle-notch spinner"></i> Lade Details...
+            </div>
+        </div>
+    </div>
+</div>
 <script src="assets/js/app.js"></script>
 </body>
 </html>
