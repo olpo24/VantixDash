@@ -5,6 +5,9 @@ namespace VantixDash;
 
 use Exception;
 
+/**
+ * SiteService - Verwaltung und Kommunikation mit WordPress-Instanzen
+ */
 class SiteService {
     private string $file;
     private ConfigService $config;
@@ -39,7 +42,7 @@ class SiteService {
     }
 
     /**
-     * Speichert die aktuellen Seiten atomar in die JSON-Datei
+     * Speichert die aktuellen Seiten atomar (Write-then-Rename)
      */
     public function save(?array $sites = null): bool {
         if ($sites !== null) {
@@ -51,6 +54,7 @@ class SiteService {
             return false;
         }
 
+        // Atomares Speichern verhindert Datenverlust bei Abstürzen
         $tempFile = $this->file . '.tmp.' . bin2hex(random_bytes(8));
 
         if (file_put_contents($tempFile, $jsonContent, LOCK_EX) === false) {
@@ -75,7 +79,7 @@ class SiteService {
     }
 
     /**
-     * Aktualisiert die Daten einer WordPress-Seite via API
+     * Aktualisiert die Daten einer WordPress-Seite via REST API
      */
     public function refreshSiteData(string $id): array|false {
         foreach ($this->sites as &$site) {
@@ -83,13 +87,17 @@ class SiteService {
                 try {
                     $apiUrl = rtrim($site['url'], '/') . '/wp-json/vantixdash/v1/status';
                     
-                    $safeApiKey = preg_replace('/[\r\n]/', '', (string)$site['api_key']);
+                    // Key validieren vor Nutzung
+                    if (!$this->isValidApiKey((string)$site['api_key'])) {
+                        throw new Exception("Gespeicherter API-Key hat ein ungültiges Format.");
+                    }
+
                     $timeout = $this->config->getTimeout('site_check');
 
                     $options = [
                         'http' => [
                             'method' => 'GET',
-                            'header' => "X-Vantix-Secret: " . $safeApiKey . "\r\n" .
+                            'header' => "X-Vantix-Secret: " . $site['api_key'] . "\r\n" .
                                         "User-Agent: VantixDash-Monitor/1.0\r\n",
                             'timeout' => $timeout,
                             'ignore_errors' => true
@@ -106,9 +114,10 @@ class SiteService {
                     $data = json_decode($response, true);
                     
                     if (json_last_error() !== JSON_ERROR_NONE || !isset($data['version'])) {
-                        throw new Exception("Ungültiges JSON-Format oder fehlende Daten von WordPress");
+                        throw new Exception("Ungültige Antwort von WordPress (JSON Fehler oder fehlende Daten)");
                     }
 
+                    // Daten mappen
                     $site['status'] = 'online';
                     $site['wp_version'] = (string)$data['version'];
                     $site['php'] = (string)($data['php'] ?? 'unknown');
@@ -122,20 +131,14 @@ class SiteService {
                     $site['plugin_list'] = (array)($data['plugin_list'] ?? []);
                     $site['theme_list']  = (array)($data['theme_list'] ?? []);
                     
-                    $site['details'] = [
-                        'core' => [],
-                        'plugins' => $site['plugin_list'],
-                        'themes' => $site['theme_list']
-                    ];
-
                     $site['last_check'] = date('Y-m-d H:i:s');
+                    
                     $this->save();
                     return $site;
 
                 } catch (Exception $e) {
-                    $this->logger->error("WordPress API Request fehlgeschlagen", [
-                        'site_id' => $id,
-                        'url'     => $apiUrl ?? $site['url'],
+                    $this->logger->error("WordPress Check fehlgeschlagen", [
+                        'site'    => $site['name'],
                         'message' => $e->getMessage()
                     ]);
 
@@ -150,44 +153,39 @@ class SiteService {
     }
 
     /**
-     * Validiert das Format des API Keys
+     * Strikte Validierung: Erwartet exakt 32 Hex-Zeichen
      */
     private function isValidApiKey(string $key): bool {
-        return (bool)preg_match('/^[A-Za-z0-9-]{16,}$/', $key);
+        return (bool)preg_match('/^[a-f0-9]{32}$/i', $key);
     }
 
     /**
-     * Fügt eine neue Seite hinzu mit strikter Validierung
-     * @throws Exception Wenn die URL ungültig ist
+     * Fügt eine neue Seite hinzu
      */
     public function addSite(string $name, string $url): array|false {
-        // 1. URL Validierung (Formal & Protokoll)
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            throw new Exception('Die angegebene URL ist formal ungültig.');
+        // 1. URL Validierung
+        $url = filter_var(rtrim($url, '/'), FILTER_VALIDATE_URL);
+        if (!$url || !preg_match('/^https?:\/\//i', $url)) {
+            throw new Exception('Bitte gib eine gültige URL inkl. http/https an.');
         }
 
-        if (!preg_match('/^https?:\/\//i', $url)) {
-            throw new Exception('Die URL muss mit http:// oder https:// beginnen.');
+        // 2. Key-Generierung (32 Zeichen Hex)
+        $apiKey = bin2hex(random_bytes(16));
+        if (!$this->isValidApiKey($apiKey)) {
+            throw new Exception('Fehler bei der kryptografischen Key-Generierung.');
         }
-
-        // 2. Daten bereinigen (XSS Schutz)
-        $cleanName = strip_tags($name);
-        $cleanUrl = rtrim($url, '/');
-        
-        $apiKey = bin2hex(random_bytes(16)); 
-        $id = bin2hex(random_bytes(6));
 
         $newSite = [
-            'id' => $id,
-            'name' => htmlspecialchars($cleanName, ENT_QUOTES, 'UTF-8'),
-            'url' => $cleanUrl,
-            'api_key' => $apiKey,
-            'status' => 'pending',
-            'wp_version' => '0.0.0',
-            'updates' => ['core' => 0, 'plugins' => 0, 'themes' => 0],
-            'last_check' => date('Y-m-d H:i:s'),
+            'id'          => bin2hex(random_bytes(6)), // Eindeutige ID
+            'name'        => htmlspecialchars(strip_tags(trim($name)), ENT_QUOTES, 'UTF-8'),
+            'url'         => $url,
+            'api_key'     => $apiKey,
+            'status'      => 'pending',
+            'wp_version'  => '0.0.0',
+            'updates'     => ['core' => 0, 'plugins' => 0, 'themes' => 0],
+            'last_check'  => date('Y-m-d H:i:s'),
             'plugin_list' => [],
-            'theme_list' => []
+            'theme_list'  => []
         ];
 
         $this->sites[] = $newSite;
@@ -199,12 +197,8 @@ class SiteService {
      */
     public function deleteSite(string $id): bool {
         $originalCount = count($this->sites);
-        $this->sites = array_filter($this->sites, fn($s) => $s['id'] !== $id);
+        $this->sites = array_values(array_filter($this->sites, fn($s) => $s['id'] !== $id));
         
-        if (count($this->sites) === $originalCount) {
-            return false;
-        }
-
-        return $this->save();
+        return (count($this->sites) < $originalCount) ? $this->save() : false;
     }
 }
