@@ -181,4 +181,27 @@ class SiteService {
 
         return $this->save();
     }
+	// In SiteService.php
+
+private Logger $logger;
+
+public function __construct(string $sitesPath, ConfigService $config, Logger $logger) {
+    $this->sitesPath = $sitesPath;
+    $this->config = $config;
+    $this->logger = $logger;
+}
+
+public function refreshSiteData(string $id): ?array {
+    try {
+        // ... API Request Logik ...
+    } catch (Exception $e) {
+        // Statt echo: Professionelles Logging mit Kontext
+        $this->logger->error("WordPress API Request fehlgeschlagen", [
+            'site_id' => $id,
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine()
+        ]);
+        return null;
+    }
 }
