@@ -18,19 +18,21 @@ $siteService = new SiteService($sitesFile, $config);
 
 // 2. SICHERHEITSPRÜFUNG (CLI vs. WEB)
 if (php_sapi_name() !== 'cli') {
-    $providedToken = $_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
+    // Sicherheit: Token nur über HTTP-Header akzeptieren, nicht über GET-Parameter
+    // Dies verhindert, dass Tokens in Logs oder Browser-Historie gespeichert werden
+    $providedToken = $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
     $secretToken = (string)$config->get('cron_secret', '');
 
     // Falls noch kein Token existiert, generieren wir einmalig einen
     if (empty($secretToken)) {
         $secretToken = bin2hex(random_bytes(32));
-        $config->updateCronSecret($secretToken); 
+        $config->updateCronSecret($secretToken);
     }
 
     // Zeitkonstanter Vergleich gegen Timing-Attacks
     if (empty($providedToken) || !hash_equals($secretToken, $providedToken)) {
         header('Content-Type: application/json', true, 403);
-        echo json_encode(['success' => false, 'message' => 'Nicht autorisiert.']);
+        echo json_encode(['success' => false, 'message' => 'Nicht autorisiert. Token muss über HTTP_X_CRON_TOKEN Header gesendet werden.']);
         exit;
     }
 }

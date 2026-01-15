@@ -29,8 +29,12 @@ $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $lo
 // 3. Auth-Check & Session-Management
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $configService->getTimeout('session'))) {
-        session_unset(); session_destroy();
-        header('Location: login.php?timeout=1'); exit;
+        // Session Fixation Protection: Regenerate session ID before destroying
+        session_regenerate_id(true);
+        session_unset();
+        session_destroy();
+        header('Location: login.php?timeout=1');
+        exit;
     }
     $_SESSION['last_activity'] = time();
 } else {
