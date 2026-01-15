@@ -7,11 +7,19 @@ session_start();
  */
 require_once __DIR__ . '/autoload.php';
 
-use VantixDash\ConfigService;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\User\UserService;
+use VantixDash\User\TwoFactorService;
 use VantixDash\RateLimiter;
 
-$configService = new ConfigService();
+// Services initialisieren
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$userService = new UserService($configService);
+$twoFactorService = new TwoFactorService($configService);
 $rateLimiter = new RateLimiter();
+
 $error = '';
 $success = '';
 
@@ -40,13 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $_POST['username'] ?? '';
             $pass = $_POST['password'] ?? '';
 
-            // FIX: Nutze getString() statt get()
-            $storedUser = $configService->getString('username');
-            $storedHash = $configService->getString('password_hash');
-
-            if ($user !== '' && $user === $storedUser && password_verify($pass, $storedHash)) {
-                // Passwort korrekt! Prüfen, ob 2FA aktiv ist (FIX: Nutze getBool)
-                if ($configService->getBool('2fa_enabled')) {
+            if ($userService->verifyCredentials($user, $pass)) {
+                // Passwort korrekt! Prüfen, ob 2FA aktiv ist
+                if ($twoFactorService->isEnabled()) {
                     $_SESSION['auth_pending'] = true; 
                     $_SESSION['temp_user'] = $user;
                 } else {
@@ -71,13 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $code = $_POST['2fa_code'] ?? '';
-            require_once __DIR__ . '/libs/GoogleAuthenticator.php';
-            $ga = new \PHPGangsta_GoogleAuthenticator();
             
-            // FIX: Nutze getString() statt get()
-            $secret = $configService->getString('2fa_secret');
-
-            if ($ga->verifyCode($secret, $code, 2)) {
+            if ($twoFactorService->verify($code)) {
                 session_regenerate_id(true);
                 $_SESSION['logged_in'] = true;
                 $_SESSION['username'] = $_SESSION['temp_user'] ?? '';
@@ -100,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Login - VantixDash</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
-        /* Spezifisches Styling für die Login-Seite, basierend auf deinem neuen Farbschema */
         body.login-page {
             display: flex;
             align-items: center;
@@ -122,11 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-align: center;
             margin-bottom: 2rem;
         }
-        .login-header h2 {
-            color: #222e3c;
-            margin: 0;
-            font-size: 1.5rem;
-        }
+        .login-header h2 { color: #222e3c; margin: 0; font-size: 1.5rem; }
         .alert {
             padding: 0.75rem 1rem;
             border-radius: 4px;
