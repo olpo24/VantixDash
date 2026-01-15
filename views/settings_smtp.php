@@ -8,32 +8,29 @@ $statusMessage = '';
 $error = false;
 
 // Formularverarbeitung (Speichern)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_smtp'])) {
-    $token = $_POST['csrf_token'] ?? '';
-    if (!isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
-        $statusMessage = "Sicherheitsfehler: CSRF-Token ungültig.";
-        $error = true;
-    } else {
-        $smtpData = [
-            'host'       => $_POST['smtp_host'] ?? '',
-            'user'       => $_POST['smtp_user'] ?? '',
-            'pass'       => $_POST['smtp_pass'] ?? '',
-            'port'       => $_POST['smtp_port'] ?? 587,
-            'from_email' => $_POST['smtp_from_email'] ?? '',
-            'from_name'  => $_POST['smtp_from_name'] ?? ''
-        ];
+use VantixDash\Mail\SmtpConfigService;
 
-        if ($configService->updateSmtpConfig($smtpData)) {
-            $statusMessage = "SMTP-Einstellungen erfolgreich gespeichert.";
-            $logger->info("SMTP-Konfiguration wurde aktualisiert.");
-        } else {
-            $statusMessage = "Fehler beim Speichern der Konfiguration.";
-            $error = true;
-        }
+$smtpConfigService = new SmtpConfigService($configService);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_smtp'])) {
+    $smtpData = [
+        'host' => $_POST['smtp_host'] ?? '',
+        'user' => $_POST['smtp_user'] ?? '',
+        'pass' => $_POST['smtp_pass'] ?? '',
+        'port' => $_POST['smtp_port'] ?? 587,
+        'from_email' => $_POST['smtp_from_email'] ?? '',
+        'from_name' => $_POST['smtp_from_name'] ?? ''
+    ];
+    
+    if ($smtpConfigService->updateConfig($smtpData)) {
+        $statusMessage = "SMTP-Einstellungen erfolgreich gespeichert.";
+    } else {
+        $statusMessage = "Ungültige SMTP-Konfiguration.";
+        $error = true;
     }
 }
 
-$smtp = $configService->getSmtpConfig();
+$smtp = $smtpConfigService->getConfig();
 ?>
 
 <div class="content-header">
