@@ -187,39 +187,46 @@ try {
             break;
 
         case 'update_profile':
-            $username = $_POST['username'] ?? '';
-            $email = $_POST['email'] ?? '';
-            
-            if ($configService->updateUser($username, $email)) {
-                jsonSuccess([], 'Profil erfolgreich aktualisiert.');
-            } else {
-                jsonError(500, 'Speichern des Profils fehlgeschlagen.');
-            }
-            break;
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    
+    if ($userService->updateProfile($username, $email)) {
+        jsonSuccess([], 'Profil erfolgreich aktualisiert.');
+    } else {
+        jsonError(400, 'Ungültige E-Mail Adresse.');
+    }
+    break;
 
         case 'setup_2fa':
-            $secret = $ga->createSecret();
-            $_SESSION['temp_2fa_secret'] = $secret;
-            $qrCodeUrl = $ga->getQRCodeGoogleUrl('VantixDash', $secret, 'VantixDash-Monitor');
-            jsonSuccess(['qrCodeUrl' => $qrCodeUrl, 'secret' => $secret]);
-            break;
+    $secret = $twoFactorService->generateSecret();
+    $_SESSION['temp_2fa_secret'] = $secret;
+    
+    $username = $userService->getUsername();
+    $qrCodeUrl = $twoFactorService->getQrCodeUrl($secret, $username);
+    
+    jsonSuccess(['qrCodeUrl' => $qrCodeUrl, 'secret' => $secret]);
+    break;
 
-        case 'verify_2fa':
-            $secret = (string)($_SESSION['temp_2fa_secret'] ?? '');
-            $code = $_POST['code'] ?? '';
-            
-            if (empty($secret)) {
-                jsonError(400, 'Keine aktive 2FA-Sitzung gefunden.');
-            }
-            
-            if ($ga->verifyCode($secret, $code, 2)) {
-                $configService->update2FA(true, $secret);
-                unset($_SESSION['temp_2fa_secret']);
-                jsonSuccess([], '2FA erfolgreich aktiviert.');
-            } else {
-                jsonError(400, 'Der eingegebene Code ist falsch.');
-            }
-            break;
+case 'verify_2fa':
+    $secret = $_SESSION['temp_2fa_secret'] ?? '';
+    $code = $_POST['code'] ?? '';
+    
+    if ($twoFactorService->verify($code, $secret)) {
+        $twoFactorService->enable($secret);
+        unset($_SESSION['temp_2fa_secret']);
+        jsonSuccess([], '2FA erfolgreich aktiviert.');
+    } else {
+        jsonError(400, 'Der eingegebene Code ist falsch.');
+    }
+    break;
+
+case 'disable_2fa':
+    if ($twoFactorService->disable()) {
+        jsonSuccess([], '2FA wurde deaktiviert.');
+    } else {
+        jsonError(500, 'Deaktivierung fehlgeschlagen.');
+    }
+    break;
 
         case 'test_smtp':
             $mailService = new MailService($configService, $logger);
