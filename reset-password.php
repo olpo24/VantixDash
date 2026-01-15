@@ -8,10 +8,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/autoload.php';
 
 use VantixDash\Logger;
-use VantixDash\ConfigService;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\User\PasswordService;
 
 $logger = new Logger();
-$config = new ConfigService();
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$passwordService = new PasswordService($configService);
+
 $message = '';
 $error = false;
 
@@ -25,7 +30,7 @@ if (empty($token) || !preg_match('/^[a-f0-9]{64}$/i', (string)$token)) {
 }
 
 // 3. Token-Gültigkeit prüfen
-if (!$config->verifyResetToken((string)$token)) {
+if (!$passwordService->verifyResetToken((string)$token)) {
     $logger->warning("Abgelaufener oder manipulierter Reset-Token verwendet.");
     die("Dieser Link ist abgelaufen oder ungültig. Bitte fordern Sie einen neuen an.");
 }
@@ -42,11 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
         $message = "Die Passwort-Wiederholung stimmt nicht überein.";
         $error = true;
     } else {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        
-        if ($config->updatePassword($hash)) {
+        if ($passwordService->updatePassword($password)) {
             // Token nach Erfolg sofort entwerten
-            $config->clearResetToken();
+            $passwordService->clearResetToken();
             
             $logger->info("Passwort erfolgreich über Reset-Link zurückgesetzt.");
             $message = "Erfolg! Ihr Passwort wurde geändert. Sie werden zum Login weitergeleitet.";
@@ -60,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
             // Nach 3 Sekunden zum Login
             header("Refresh: 3; url=login.php?reset=1");
         } else {
-            $logger->error("Fehler: Passwort-Update im ConfigService fehlgeschlagen.");
+            $logger->error("Fehler: Passwort-Update im PasswordService fehlgeschlagen.");
             $message = "Ein Systemfehler ist aufgetreten.";
             $error = true;
         }
