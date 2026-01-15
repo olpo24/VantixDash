@@ -7,11 +7,18 @@ session_start();
  */
 require_once __DIR__ . '/autoload.php';
 
-use VantixDash\ConfigService;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\User\UserService;
+use VantixDash\User\PasswordService;
 use VantixDash\RateLimiter;
 
-$configService = new ConfigService();
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$userService = new UserService($configService);
+$passwordService = new PasswordService($configService);
 $rateLimiter = new RateLimiter();
+
 $error = '';
 $success = '';
 
@@ -27,24 +34,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Zu viele Versuche. Bitte warten Sie 15 Minuten.';
     } else {
         $email = $_POST['email'] ?? '';
-        $storedEmail = $configService->getString('email');
+        $storedEmail = $userService->getEmail();
 
         // Sicherheit: Immer die gleiche Erfolgsmeldung zeigen (Privacy)
         if (!empty($email) && strtolower($email) === strtolower($storedEmail)) {
-            $token = bin2hex(random_bytes(32));
-            if ($configService->setResetToken($token)) {
-                // HIER würde in einer echten Umgebung die E-Mail gesendet werden
-                // Für VantixDash Log:
-                $resetLink = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]/reset-password.php?token=$token";
-                
-                // Wir simulieren den Versand für das Dashboard
-                $success = 'Wenn die E-Mail-Adresse existiert, wurde ein Reset-Link versendet.';
-                
-                // Debug-Hinweis für Entwicklung (später entfernen!)
-                // error_log("Passwort Reset Link: " . $resetLink);
-            } else {
-                $error = 'Fehler beim Generieren des Tokens.';
-            }
+            $token = $passwordService->createResetToken();
+            
+            // HIER würde in einer echten Umgebung die E-Mail gesendet werden
+            $resetLink = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]/reset-password.php?token=$token";
+            
+            // Wir simulieren den Versand für das Dashboard
+            $success = 'Wenn die E-Mail-Adresse existiert, wurde ein Reset-Link versendet.';
+            
+            // Debug-Hinweis für Entwicklung (später entfernen!)
+            // error_log("Passwort Reset Link: " . $resetLink);
         } else {
             $success = 'Wenn die E-Mail-Adresse existiert, wurde ein Reset-Link versendet.';
         }
