@@ -30,7 +30,7 @@ $repository = new ConfigRepository();
 $configService = new ConfigService($repository);
 $settingsService = new SettingsService($configService);
 
-$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger, $settingsService );
 
 // 3. Auth-Check & Session-Management
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
