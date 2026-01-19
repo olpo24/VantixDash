@@ -4,9 +4,14 @@
  * Verwaltung der globalen Dashboard-Einstellungen und Updates.
  */
 
-// Sicherer Abruf der Version
-$versionData = include('version.php');
-$currentVersion = is_array($versionData) ? $versionData['version'] : $versionData;
+// Services müssen verfügbar sein
+use VantixDash\Config\SettingsService;
+
+if (!isset($settingsService)) {
+    $settingsService = new SettingsService($configService);
+}
+
+$currentVersion = $settingsService->getVersion();
 ?>
 
 <div style="max-width: 800px; margin: 0 auto;">
@@ -37,16 +42,16 @@ $currentVersion = is_array($versionData) ? $versionData['version'] : $versionDat
                 </div>
             </div>
             <div id="update-container" style="display: none;" class="update-banner">
-    <div class="update-content">
-        <div class="update-text">
-            <strong>System-Update verfügbar</strong>
-            <span>Version <span id="new-version-number"></span> ist bereit.</span>
-        </div>
-        <button id="start-update-btn" class="main-button">
-            Update jetzt installieren
-        </button>
-    </div>
-</div>
+                <div class="update-content">
+                    <div class="update-text">
+                        <strong>System-Update verfügbar</strong>
+                        <span>Version <span id="new-version-number"></span> ist bereit.</span>
+                    </div>
+                    <button id="start-update-btn" class="main-button">
+                        Update jetzt installieren
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 1rem;">
@@ -97,6 +102,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggle) toggle.checked = isBeta;
     
     // Automatisch nach Updates suchen, wenn die Einstellungsseite geladen wird
-    App.checkAppUpdates();
+    if (typeof App !== 'undefined' && typeof App.checkAppUpdates === 'function') {
+        App.checkAppUpdates();
+    }
 });
+
+function toggleBeta(enabled) {
+    localStorage.setItem('vantix_beta', enabled ? 'true' : 'false');
+    showToast(enabled ? 'Beta-Kanal aktiviert' : 'Beta-Kanal deaktiviert', 'info');
+}
+
+function checkAppUpdates() {
+    if (typeof App !== 'undefined' && typeof App.checkAppUpdates === 'function') {
+        App.checkAppUpdates();
+    } else {
+        showToast('Update-Funktion noch nicht geladen', 'warning');
+    }
+}
 </script>
