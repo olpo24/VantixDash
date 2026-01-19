@@ -18,23 +18,32 @@ session_start();
 require_once __DIR__ . '/autoload.php';
 
 use VantixDash\Logger;
-use VantixDash\ConfigService;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\Config\SettingsService;
 use VantixDash\SiteService;
 
 // 2. Initialisierung
 $logger = new Logger();
-$configService = new ConfigService();
+
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$settingsService = new SettingsService($configService);
+
 $siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
 
 // 3. Auth-Check & Session-Management
 if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $configService->getTimeout('session'))) {
-        session_unset(); session_destroy();
-        header('Location: login.php?timeout=1'); exit;
+    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $settingsService->getTimeout('session'))) {
+        session_unset(); 
+        session_destroy();
+        header('Location: login.php?timeout=1'); 
+        exit;
     }
     $_SESSION['last_activity'] = time();
 } else {
-    header('Location: login.php'); exit;
+    header('Location: login.php'); 
+    exit;
 }
 
 if (empty($_SESSION['csrf_token'])) {
