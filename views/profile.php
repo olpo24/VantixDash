@@ -1,6 +1,18 @@
 <?php
 if (!isset($_SESSION['logged_in'])) exit;
-$user_data = $configService->getUserData(); 
+
+// Services müssen hier verfügbar gemacht werden
+use VantixDash\User\UserService;
+use VantixDash\User\TwoFactorService;
+
+if (!isset($userService)) {
+    $userService = new UserService($configService);
+}
+if (!isset($twoFactorService)) {
+    $twoFactorService = new TwoFactorService($configService);
+}
+
+$user_data = $userService->getUserData(); 
 $csrf_token = $_SESSION['csrf_token'];
 ?>
 
@@ -158,7 +170,7 @@ async function confirm2FA() {
     }
 }
 
-// 5. 2FA Deaktivieren (mit neuem Confirm-Modal)
+// 5. 2FA Deaktivieren
 async function disable2FAHandler() {
     const confirmed = await window.showConfirm(
         '2FA deaktivieren?',
