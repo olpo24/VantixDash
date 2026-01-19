@@ -41,11 +41,25 @@ function getRequestHeader(string $name): string {
 /**
  * 3. INITIALISIERUNG
  */
-$logger = new Logger();
-$configService = new ConfigService();
-$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger, $settingsService);
-$rateLimiter = new RateLimiter();
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$settingsService = new SettingsService($configService);
 
+// User Layer
+$userService = new UserService($configService);
+$passwordService = new PasswordService($configService);
+$twoFactorService = new TwoFactorService($configService);
+
+// Mail Layer
+$smtpConfigService = new SmtpConfigService($configService);
+
+// Site Management - MIT SettingsService
+$siteService = new SiteService(
+    __DIR__ . '/data/sites.json', 
+    $configService, 
+    $logger,
+    $settingsService  // ← HINZUGEFÜGT
+);
 // Externe Libs (nicht PSR-4 konform)
 require_once __DIR__ . '/libs/GoogleAuthenticator.php';
 $ga = new \PHPGangsta_GoogleAuthenticator();
