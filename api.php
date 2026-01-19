@@ -12,10 +12,16 @@ session_start();
 require_once __DIR__ . '/autoload.php';
 
 use VantixDash\Logger;
-use VantixDash\ConfigService;
+use VantixDash\RateLimiter;
 use VantixDash\SiteService;
 use VantixDash\MailService;
-use VantixDash\RateLimiter;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\Config\SettingsService;
+use VantixDash\User\UserService;
+use VantixDash\User\PasswordService;
+use VantixDash\User\TwoFactorService;
+use VantixDash\Mail\SmtpConfigService;
 
 /**
  * 2. HELPER FUNKTIONEN
@@ -41,6 +47,9 @@ function getRequestHeader(string $name): string {
 /**
  * 3. INITIALISIERUNG
  */
+// 1. Zuerst den Logger erstellen (WICHTIG!)
+$logger = new Logger(__DIR__ . '/data/logs/app.log'); // Pfad ggf. anpassen
+$rateLimiter = new RateLimiter();
 $repository = new ConfigRepository();
 $configService = new ConfigService($repository);
 $settingsService = new SettingsService($configService);
