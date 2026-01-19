@@ -5,25 +5,35 @@ namespace VantixDash;
 
 use Exception;
 use VantixDash\Exception\SiteRefreshException;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\SettingsService;
 /**
  * SiteService - Hochperformante Verwaltung von WordPress-Instanzen
  */
 class SiteService {
     private string $file;
     private ConfigService $config;
+	 private SettingsService $settings;
     private Logger $logger;
     private array $sites = [];
     private array $indexMap = []; // [site_id => array_index] für O(1) Zugriff
 
-    /**
+ /**
      * @param string $file Pfad zur sites.json
      * @param ConfigService $config Instanz des ConfigService
      * @param Logger $logger Instanz des LoggerService
+     * @param SettingsService|null $settings Optional: SettingsService für Timeouts
      */
-    public function __construct(string $file, ConfigService $config, Logger $logger) {
+public function __construct(
+        string $file, 
+        ConfigService $config, 
+        Logger $logger,
+        ?SettingsService $settings = null
+    ) {
         $this->file = $file;
         $this->config = $config;
         $this->logger = $logger;
+        $this->settings = $settings ?? new SettingsService($config); // ← Auto-init falls null
         $this->load();
     }
 
@@ -94,13 +104,11 @@ class SiteService {
      * Aktualisiert die Daten einer WordPress-Seite via REST API (Optimiert)
      */
     public function refreshSiteData(string $id): array|false {
-        // O(1) Zugriff statt foreach-Loop
         $index = $this->indexMap[$id] ?? null;
         if ($index === null || !isset($this->sites[$index])) {
             return false;
         }
 
-        // Referenz nutzen, um das Haupt-Array direkt zu manipulieren
         $site = &$this->sites[$index];
 
         try {
@@ -110,12 +118,15 @@ class SiteService {
                 throw new Exception("Gespeicherter API-Key hat ein ungültiges Format.");
             }
 
+            // ✅ JETZT NUTZEN WIR SettingsService
+            $timeout = $this->settings->getTimeout('site_check');
+            
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
                     'header' => "X-Vantix-Secret: " . $site['api_key'] . "\r\n" .
                                 "User-Agent: VantixDash-Monitor/1.0\r\n",
-                    'timeout' => $this->config->getTimeout('site_check'),
+                    'timeout' => $timeout,
                     'ignore_errors' => true
                 ]
             ]);
