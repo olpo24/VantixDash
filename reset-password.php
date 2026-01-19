@@ -12,7 +12,7 @@ use VantixDash\Config\ConfigService;
 use VantixDash\Config\ConfigRepository;
 use VantixDash\User\PasswordService;
 
-$logger = new Logger();
+$logger = new Logger(__DIR__ . '/data/logs.json');
 $repository = new ConfigRepository();
 $configService = new ConfigService($repository);
 $passwordService = new PasswordService($configService);
