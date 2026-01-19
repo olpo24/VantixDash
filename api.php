@@ -43,7 +43,7 @@ function getRequestHeader(string $name): string {
  */
 $logger = new Logger();
 $configService = new ConfigService();
-$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger);
+$siteService = new SiteService(__DIR__ . '/data/sites.json', $configService, $logger, $settingsService);
 $rateLimiter = new RateLimiter();
 
 // Externe Libs (nicht PSR-4 konform)
