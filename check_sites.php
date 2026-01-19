@@ -6,25 +6,31 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/services/ConfigService.php';
-require_once __DIR__ . '/services/SiteService.php';
-require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+require_once __DIR__ . '/autoload.php';
+
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\Config\SettingsService;
+use VantixDash\SiteService;
+use VantixDash\Logger;
 
 // 1. INITIALISIERUNG
-$ga = new PHPGangsta_GoogleAuthenticator();
-$config = new ConfigService();
+$logger = new Logger();
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$settingsService = new SettingsService($configService);
+
 $sitesFile = __DIR__ . '/data/sites.json';
-$siteService = new SiteService($sitesFile, $config);
+$siteService = new SiteService($sitesFile, $configService, $logger);
 
 // 2. SICHERHEITSPRÜFUNG (CLI vs. WEB)
 if (php_sapi_name() !== 'cli') {
     $providedToken = $_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
-    $secretToken = (string)$config->get('cron_secret', '');
+    $secretToken = $settingsService->getCronSecret();
 
     // Falls noch kein Token existiert, generieren wir einmalig einen
     if (empty($secretToken)) {
-        $secretToken = bin2hex(random_bytes(32));
-        $config->updateCronSecret($secretToken); 
+        $secretToken = $settingsService->generateCronSecret();
     }
 
     // Zeitkonstanter Vergleich gegen Timing-Attacks
@@ -44,9 +50,7 @@ $results = [
     'errors'    => 0
 ];
 
-// ZENTRALE TIMEOUTS AUS DER CONFIG LADEN
-// Wir nutzen "site_check" als Typ, wie im ConfigService definiert
-$siteTimeout = $config->getTimeout('site_check');
+$siteTimeout = $settingsService->getTimeout('site_check');
 
 echo "Starte VantixDash Hintergrund-Check (Timeout pro Seite: {$siteTimeout}s)...\n";
 
@@ -55,10 +59,6 @@ foreach ($sites as $site) {
     echo "Prüfe: " . ($site['name'] ?? $site['url']) . " ... ";
 
     try {
-        /**
-         * HINWEIS: Der SiteService nutzt intern stream_context_create.
-         * Wir stellen sicher, dass refreshSiteData den Timeout aus der Config beachtet.
-         */
         $updatedData = $siteService->refreshSiteData($site['id']);
         
         if ($updatedData) {
