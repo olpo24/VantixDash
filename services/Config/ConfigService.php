@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 namespace VantixDash\Config;
-
+    
 /**
  * ConfigService - Typsicherer Key-Value Zugriff
  * 
@@ -11,7 +11,9 @@ namespace VantixDash\Config;
 class ConfigService {
     private ConfigRepository $repository;
     private array $data = [];
-
+public function getVersion(): string {
+        return (string)($this->versionData['version'] ?? '0.0.0');
+    }
     public function __construct(?ConfigRepository $repository = null) {
         $this->repository = $repository ?? new ConfigRepository();
         $this->data = $this->repository->load();
