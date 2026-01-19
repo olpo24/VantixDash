@@ -8,21 +8,27 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/autoload.php';
 
+use VantixDash\Logger;
 use VantixDash\Config\ConfigService;
 use VantixDash\Config\ConfigRepository;
 use VantixDash\Config\SettingsService;
 use VantixDash\SiteService;
-use VantixDash\Logger;
 
 // 1. INITIALISIERUNG
-$logger = new Logger();
+$logger = new Logger(__DIR__ . '/data/logs.json');
 $repository = new ConfigRepository();
 $configService = new ConfigService($repository);
 $settingsService = new SettingsService($configService);
 
 $sitesFile = __DIR__ . '/data/sites.json';
-$siteService = new SiteService($sitesFile, $configService, $logger);
 
+// ✅ MIT SettingsService
+$siteService = new SiteService(
+    $sitesFile, 
+    $configService, 
+    $logger,
+    $settingsService
+);
 // 2. SICHERHEITSPRÜFUNG (CLI vs. WEB)
 if (php_sapi_name() !== 'cli') {
     $providedToken = $_GET['token'] ?? $_SERVER['HTTP_X_CRON_TOKEN'] ?? '';
