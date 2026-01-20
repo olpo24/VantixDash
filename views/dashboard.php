@@ -21,18 +21,18 @@ $sites = $siteService->getAll();
         <table class="native-table">
             <thead>
                 <tr>
-                    <th style="width: 50px; text-align: center;">Status</th>
+                    <th>Status</th>
                     <th>Seite</th>
                     <th>Updates</th>
                     <th>WordPress</th>
-                    <th style="text-align: right;">Aktionen</th>
+                    <th>Aktionen</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($sites)): ?>
                     <tr>
-                        <td colspan="5" class="text-center" style="padding: 3rem;">
-                            <i class="ph ph-detective" style="font-size: 2rem; display: block; margin-bottom: 10px; color: var(--text-muted);"></i>
+                        <td colspan="5" class="text-center"">
+                            <i class="ph ph-detective"</i>
                             Keine Seiten gefunden. <a href="index.php?view=add_site">Füge deine erste Seite hinzu.</a>
                         </td>
                     </tr>
@@ -45,23 +45,23 @@ $sites = $siteService->getAll();
                         $core    = (int)($site['updates']['core'] ?? 0);
                     ?>
                         <tr data-id="<?php echo htmlspecialchars($id, ENT_QUOTES, 'UTF-8'); ?>">
-                            <td style="text-align: center;">
+                            <td>
                                 <span class="status-indicator status-badge <?php echo htmlspecialchars($status); ?>" 
                                       title="Status: <?php echo htmlspecialchars($status); ?>"
-                                      style="margin: 0 auto;"></span>
+                                      ></span>
                             </td>
                             <td>
                                 <div class="site-info">
-                                    <span class="site-name" style="font-weight: 600;">
+                                    <span class="site-name">
                                         <?php echo htmlspecialchars($site['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
-                                    <small class="site-url" style="display: block; color: var(--text-muted); font-size: 0.75rem;">
+                                    <small class="site-url">
                                         <?php echo htmlspecialchars($site['url'], ENT_QUOTES, 'UTF-8'); ?>
                                     </small>
                                 </div>
                             </td>
                             <td>
-                                <div class="update-overview" style="display: flex; gap: 6px;">
+                                <div class="update-overview">
                                     <div class="update-pill mini <?php echo ($core > 0) ? 'has-updates' : ''; ?>" title="Core">
                                         <i class="ph ph-cpu"></i> <span class="update-count-core"><?php echo $core; ?></span>
                                     </div>
@@ -74,12 +74,12 @@ $sites = $siteService->getAll();
                                 </div>
                             </td>
                             <td>
-                                <span class="text-muted wp-version" style="font-size: 0.9rem;">
+                                <span class="text-muted wp-version">
                                     v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0', ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </td>
-                            <td style="text-align: right;">
-                                <div class="action-buttons" style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <td>
+                                <div class="action-buttons">
                                     <button class="icon-btn" onclick="openDetails('<?php echo addslashes($id); ?>')" title="Details">
                                         <i class="ph ph-magnifying-glass"></i>
                                     </button>
