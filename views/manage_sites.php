@@ -22,20 +22,20 @@ $sites = $siteService->getAll();
                     <th>Status</th>
                     <th>WordPress</th>
                     <th>API Key</th>
-                    <th style="text-align: right;">Aktionen</th>
+                    <th>Aktionen</th>
                 </tr>
             </thead>
             <tbody id="sites-table-body">
                 <?php if (empty($sites)): ?>
                     <tr id="no-sites-row">
-                        <td colspan="5" style="text-align: center; padding: 2rem;">Keine Seiten gefunden.</td>
+                        <td colspan="5">Keine Seiten gefunden.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($sites as $site): ?>
                         <tr data-id="<?php echo $site['id']; ?>">
                             <td>
                                 <div class="site-info">
-                                    <span class="site-name" style="font-weight: 600;"><?php echo htmlspecialchars($site['name']); ?></span><br>
+                                    <span class="site-name"><?php echo htmlspecialchars($site['name']); ?></span><br>
                                     <small class="text-muted"><?php echo htmlspecialchars($site['url']); ?></small>
                                 </div>
                             </td>
@@ -46,15 +46,14 @@ $sites = $siteService->getAll();
                             </td>
                             <td>v<?php echo htmlspecialchars($site['wp_version'] ?? '0.0.0'); ?></td>
                             <td><code><?php echo substr($site['api_key'], 0, 8); ?>...</code></td>
-                            <td style="text-align: right;">
-                                <div class="action-buttons" style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <td>
+                                <div class="action-buttons">
                                     <a href="index.php?view=edit_site&id=<?php echo $site['id']; ?>" class="icon-btn" title="Bearbeiten">
                                         <i class="ph ph-pencil-simple"></i>
                                     </a>
                                     <button type="button" 
                                             onclick="deleteSiteHandler('<?php echo $site['id']; ?>', '<?php echo htmlspecialchars($site['name'], ENT_QUOTES); ?>')" 
                                             class="icon-btn" 
-                                            style="color: var(--danger);" 
                                             title="Löschen">
                                         <i class="ph ph-trash"></i>
                                     </button>
@@ -103,7 +102,7 @@ async function deleteSiteHandler(id, name) {
                     row.remove();
                     const tbody = document.getElementById('sites-table-body');
                     if (tbody && tbody.querySelectorAll('tr').length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;">Keine Seiten gefunden.</td></tr>';
+                        tbody.innerHTML = '<tr><td>Keine Seiten gefunden.</td></tr>';
                     }
                 }, 300);
             }
