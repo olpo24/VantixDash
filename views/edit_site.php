@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regen_key'])) {
 
     <?php echo $message; ?>
 
-    <div class="card" style="margin-bottom: 2rem;">
+    <div class="card">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <div class="form-group">
@@ -85,11 +85,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regen_key'])) {
         </form>
     </div>
 
-    <div class="card" style="border-top: 4px solid var(--primary-color);">
+    <div class="card">
         <h3><i class="ph ph-key"></i> API Schlüssel</h3>
         <p class="text-muted small">Falls die Verbindung nicht mehr funktioniert, kannst du hier einen neuen Key generieren.</p>
         
-        <div class="api-key-box" style="margin: 1.5rem 0;">
+        <div class="api-key-box">
             <div class="copy-wrapper">
                 <input type="text" id="api-key-input" value="<?php echo $currentSite['api_key']; ?>" readonly>
                 <button type="button" class="copy-btn" onclick="copyApiKey()">
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['regen_key'])) {
 
         <form method="POST" onsubmit="return confirm('Alter Key wird ungültig. Fortfahren?');">
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-            <button type="submit" name="regen_key" class="ghost-button" style="color: var(--danger); border-color: var(--danger);">
+            <button type="submit" name="regen_key" class="ghost-button">
                 <i class="ph ph-arrows-clockwise"></i> Key neu generieren
             </button>
         </form>
