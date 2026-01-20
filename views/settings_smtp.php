@@ -48,7 +48,7 @@ $smtp = $smtpConfigService->getConfig();
 </div>
 
 <?php if ($statusMessage): ?>
-    <div class="alert <?php echo $error ? 'alert-danger' : 'alert-success'; ?>" style="margin-bottom: 20px;">
+    <div class="alert <?php echo $error ? 'alert-danger' : 'alert-success'; ?>>
         <i class="ph <?php echo $error ? 'ph-warning' : 'ph-check-circle'; ?>"></i>
         <?php echo htmlspecialchars($statusMessage); ?>
     </div>
@@ -58,22 +58,22 @@ $smtp = $smtpConfigService->getConfig();
     <form method="POST" action="index.php?view=settings_smtp">
         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
             <div>
                 <h3>Server-Konfiguration</h3>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>SMTP Host</label>
                     <input type="text" name="smtp_host" value="<?php echo htmlspecialchars($smtp['host']); ?>" placeholder="smtp.example.com" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>Port</label>
                     <input type="number" name="smtp_port" value="<?php echo htmlspecialchars((string)$smtp['port']); ?>" placeholder="587" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>Benutzername</label>
                     <input type="text" name="smtp_user" value="<?php echo htmlspecialchars($smtp['user']); ?>" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>Passwort</label>
                     <input type="password" name="smtp_pass" value="<?php echo htmlspecialchars($smtp['pass']); ?>">
                 </div>
@@ -81,20 +81,20 @@ $smtp = $smtpConfigService->getConfig();
 
             <div>
                 <h3>Absender & Test</h3>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>Absender E-Mail</label>
                     <input type="email" name="smtp_from_email" value="<?php echo htmlspecialchars($smtp['from_email']); ?>" required>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group">
                     <label>Absender Name</label>
                     <input type="text" name="smtp_from_name" value="<?php echo htmlspecialchars($smtp['from_name']); ?>">
                 </div>
 
-                <div style="margin-top: 40px; padding: 20px; background: var(--bg-color); border-radius: 8px; border: 1px dashed var(--border-color);">
-                    <h4 style="margin-top: 0;"><i class="ph ph-paper-plane-tilt"></i> Verbindung testen</h4>
-                    <p style="font-size: 0.85rem; color: var(--text-muted);">Speichere zuerst die Daten, bevor du den Test startest.</p>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="email" id="test_email_target" placeholder="Empfänger E-Mail" style="flex: 1;">
+                <div>
+                    <h4><i class="ph ph-paper-plane-tilt"></i> Verbindung testen</h4>
+                    <p>Speichere zuerst die Daten, bevor du den Test startest.</p>
+                    <div>
+                        <input type="email" id="test_email_target" placeholder="Empfänger E-Mail">
                         <button type="button" class="btn-secondary" onclick="sendTestEmail()" id="btn-test-mail">
                             Test senden
                         </button>
@@ -103,7 +103,7 @@ $smtp = $smtpConfigService->getConfig();
             </div>
         </div>
 
-        <div style="margin-top: 30px; border-top: 1px solid var(--border-color); padding-top: 20px; text-align: right;">
+        <div>
             <button type="submit" name="save_smtp" class="btn-primary">
                 <i class="ph ph-floppy-disk"></i> Einstellungen speichern
             </button>
