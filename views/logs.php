@@ -4,7 +4,7 @@
             <h2><i class="ph ph-scroll"></i> System-Logs</h2>
             <p class="text-muted">Die letzten Aktivitäten und Fehlermeldungen</p>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div>
             <button onclick="window.loadLogs()" class="ghost-button">
                 <i class="ph ph-arrows-clockwise"></i> Aktualisieren
             </button>
@@ -14,8 +14,8 @@
         </div>
     </div>
 
-    <div class="card" style="padding: 0; overflow: hidden; border: none;">
-        <pre id="log-viewer" style="background: #1e1e1e; color: #d4d4d4; padding: 1.5rem; margin: 0; font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.85rem; overflow-x: auto; white-space: pre-wrap; min-height: 400px; max-height: 700px; line-height: 1.6;"></pre>
+    <div class="card">
+        <pre id="log-viewer"></pre>
     </div>
 </div>
 
@@ -28,7 +28,7 @@ window.loadLogs = async () => {
     const viewer = document.getElementById('log-viewer');
     if (!viewer) return;
 
-    viewer.innerHTML = '<span style="color: #6a9955;">// Lade System-Logs...</span>';
+    viewer.innerHTML = '<span>// Lade System-Logs...</span>';
 
     try {
         // Nutzt den zentralen apiCall aus app.js
@@ -36,7 +36,7 @@ window.loadLogs = async () => {
         
         if (result && result.success) {
             if (!result.data || result.data.length === 0) {
-                viewer.innerHTML = '<span style="color: #569cd6;">[INFO]</span> Keine Log-Einträge gefunden.';
+                viewer.innerHTML = '<span>[INFO]</span> Keine Log-Einträge gefunden.';
                 return;
             }
 
@@ -54,7 +54,7 @@ window.loadLogs = async () => {
             viewer.scrollTop = viewer.scrollHeight;
         }
     } catch (e) {
-        viewer.innerHTML = '<span style="color: #f44336;">[FEHLER]</span> Logs konnten nicht geladen werden.';
+        viewer.innerHTML = '<span>[FEHLER]</span> Logs konnten nicht geladen werden.';
         console.error(e);
     }
 };
