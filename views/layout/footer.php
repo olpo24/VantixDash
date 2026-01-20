@@ -1,17 +1,17 @@
 <div id="confirm-modal" class="modal">
-    <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <div style="font-size: 3rem; margin-bottom: 1rem; color: var(--primary-color);">
+    <div class="modal-content">
+        <div>
             <i class="ph ph-question"></i>
         </div>
-        <h3 id="confirm-title" style="margin-top:0;">Bestätigen</h3>
-        <p id="confirm-message" style="color: var(--text-muted); margin-bottom: 2rem;"></p>
-        <div style="display: flex; gap: 10px; justify-content: center;">
+        <h3 id="confirm-title">Bestätigen</h3>
+        <p id="confirm-message"></p>
+        <div>
             <button id="confirm-cancel" class="btn-secondary">Abbrechen</button>
             <button id="confirm-ok" class="btn-primary">Bestätigen</button>
         </div>
     </div>
 </div>
-<div id="details-modal" class="modal-overlay" style="display:none;">
+<div id="details-modal" class="modal-overlay">
     <div class="modal-content card shadow-lg">
         <div class="modal-header">
             <h3 id="modal-title">Instanz-Details</h3>
