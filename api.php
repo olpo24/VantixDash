@@ -88,7 +88,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 // Session Timeout (Nutzt jetzt getInt für Typsicherheit)
-$timeout = $configService->getTimeout('session');
+$timeout = $settingsService->getTimeout('session');
 if (isset($_SESSION['last_activity']) && (time() - (int)$_SESSION['last_activity'] > $timeout)) {
     session_unset();
     session_destroy();
@@ -150,7 +150,7 @@ try {
                 $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
                 $options = ['http' => [
                     'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n",
-                    'timeout' => $configService->getTimeout('api'),
+                    'timeout' => $settingsService->getTimeout('api'),
                     'ignore_errors' => true
                 ]];
                 
