@@ -98,67 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - VantixDash</title>
     <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        body.login-page {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f5f7fb;
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-        }
-        .login-card {
-            width: 100%;
-            max-width: 400px;
-            padding: 2.5rem;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.05);
-        }
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .login-header h2 { color: #222e3c; margin: 0; font-size: 1.5rem; }
-        .alert {
-            padding: 0.75rem 1rem;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-        .alert-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
-        .alert-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
-        
-        .form-group { margin-bottom: 1.25rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; color: #495057; font-size: 0.9rem; }
-        .form-control {
-            width: 100%;
-            padding: 0.6rem 0.75rem;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .btn-login {
-            width: 100%;
-            padding: 0.75rem;
-            background: #3b7ddd;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-        .btn-login:hover { background: #2f64b1; }
-        .login-footer {
-            margin-top: 1.5rem;
-            text-align: center;
-            font-size: 0.85rem;
-        }
-        .login-footer a { color: #6c757d; text-decoration: none; }
-        .login-footer a:hover { text-decoration: underline; }
-    </style>
 </head>
 <body class="login-page">
     <div class="login-card">
@@ -195,12 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="action" value="verify_2fa">
-                <p style="text-align: center; font-size: 0.9rem; margin-bottom: 1.5rem; color: #6c757d;">
+                <p>
                     Bitte gib den 6-stelligen Code aus deiner Authenticator-App ein:
                 </p>
                 <div class="form-group">
                     <input type="text" name="2fa_code" placeholder="000 000" maxlength="6" 
-                           style="width: 100%; font-size: 1.75rem; text-align: center; letter-spacing: 4px; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px;" 
                            autofocus required>
                 </div>
                 <button type="submit" class="btn-login">Verifizieren & Einloggen</button>
