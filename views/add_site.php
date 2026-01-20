@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_site'])) {
 }
 ?>
 
-<div class="add-site-container" style="max-width: 600px; margin: 0 auto;">
+<div class="add-site-container">
     <div class="header-action">
         <h2><i class="ph ph-plus-circle"></i> Neue Seite</h2>
         <a href="index.php?view=manage_sites" class="ghost-button">Abbrechen</a>
@@ -33,11 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_site'])) {
             <p>Kopiere den Secret Key für das Child-Plugin:</p>
             <div class="form-group">
                 <input type="text" id="api-key-input" value="<?php echo $newSiteData['api_key']; ?>" readonly>
-                <button class="main-button" onclick="copyApiKey()" style="margin-top: 1rem; width: 100%;">
+                <button class="main-button" onclick="copyApiKey()">
                     <i class="ph ph-copy"></i> Key kopieren
                 </button>
             </div>
-            <a href="index.php?view=manage_sites" class="ghost-button" style="width: 100%;">Zur Übersicht</a>
+            <a href="index.php?view=manage_sites" class="ghost-button">Zur Übersicht</a>
         </div>
     <?php else: ?>
         <div class="card">
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_site'])) {
                     <label>URL (https://...)</label>
                     <input type="url" name="site_url" placeholder="https://beispiel.de" required>
                 </div>
-                <button type="submit" name="add_site" class="main-button" style="width: 100%;">
+                <button type="submit" name="add_site" class="main-button">
                     Seite anlegen
                 </button>
             </form>
