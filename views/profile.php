@@ -24,11 +24,11 @@ $csrf_token = $_SESSION['csrf_token'];
         </div>
     </div>
 
-    <div class="grid-two-cols" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 20px;">
+    <div class="grid-two-cols">
         
         <div class="card">
-            <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;"><h3>Allgemeine Informationen</h3></div>
-            <form id="profile-form" style="padding: 1.5rem;">
+            <div class="card-header"><h3>Allgemeine Informationen</h3></div>
+            <form id="profile-form">
                 <div class="form-group">
                     <label>Benutzername</label>
                     <input type="text" name="username" value="<?php echo htmlspecialchars($user_data['username']); ?>" required>
@@ -42,8 +42,8 @@ $csrf_token = $_SESSION['csrf_token'];
         </div>
 
         <div class="card">
-            <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;"><h3>Passwort ändern</h3></div>
-            <form id="password-form" style="padding: 1.5rem;">
+            <div class="card-header"><h3>Passwort ändern</h3></div>
+            <form id="password-form">
                 <div class="form-group">
                     <label>Neues Passwort</label>
                     <input type="password" name="new_password" placeholder="Mind. 8 Zeichen" required>
@@ -57,22 +57,22 @@ $csrf_token = $_SESSION['csrf_token'];
         </div>
     </div>
 
-    <div class="card mt-20" style="margin-top: 20px;">
-        <div class="card-header" style="padding: 1.5rem 1.5rem 0 1.5rem;">
+    <div class="card mt-20">
+        <div class="card-header">
             <h3><i class="ph ph-shield-check"></i> Zwei-Faktor-Authentisierung (2FA)</h3>
         </div>
-        <div class="card-body" id="2fa-status-container" style="padding: 1.5rem;">
+        <div class="card-body" id="2fa-status-container">
             <?php if ($user_data['2fa_enabled']): ?>
-                <div class="status-box active" style="background: rgba(34, 197, 94, 0.1); padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--success);">
+                <div class="status-box active">
                     <div>
-                        <strong style="color: var(--success); display: block; font-size: 1.1rem;"><i class="ph ph-check-circle"></i> 2FA ist aktiv</strong>
-                        <p class="text-muted" style="margin: 5px 0 0 0;">Dein Konto ist optimal geschützt.</p>
+                        <strong><i class="ph ph-check-circle"></i> 2FA ist aktiv</strong>
+                        <p class="text-muted">Dein Konto ist optimal geschützt.</p>
                     </div>
                     <button onclick="disable2FAHandler()" class="btn-danger">Deaktivieren</button>
                 </div>
             <?php else: ?>
-                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 20px; border-radius: 12px;">
-                    <p style="margin: 0;">Erhöhe die Sicherheit deines Kontos mit einer Authenticator-App (TOTP).</p>
+                <div>
+                    <p>Erhöhe die Sicherheit deines Kontos mit einer Authenticator-App (TOTP).</p>
                     <button onclick="start2FASetup()" class="btn-primary">Jetzt einrichten</button>
                 </div>
             <?php endif; ?>
@@ -81,28 +81,27 @@ $csrf_token = $_SESSION['csrf_token'];
 </div>
 
 <div id="2fa-setup-modal" class="modal">
-    <div class="modal-content card" style="max-width: 400px; padding: 0;">
-        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0;">2FA Einrichten</h3>
+    <div class="modal-content card">
+        <div>
+            <h3>2FA Einrichten</h3>
             <button onclick="close2FAModal()" class="icon-btn"><i class="ph ph-x"></i></button>
         </div>
-        <div style="padding: 1.5rem; text-align: center;">
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Scanne den QR-Code mit Google Authenticator oder Authy.</p>
+        <div>
+            <p>Scanne den QR-Code mit Google Authenticator oder Authy.</p>
             
-            <div id="qr-loading"><i class="ph ph-circle-notch ph-spin" style="font-size: 2rem;"></i></div>
-            <img id="2fa-qr-img" src="" alt="QR Code" style="margin: 0 auto 1.5rem auto; display: none; border: 8px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 200px;">
+            <div id="qr-loading"><i class="ph ph-circle-notch ph-spin"></i></div>
+            <img id="2fa-qr-img" src="" alt="QR Code">
             
-            <p style="font-size: 0.8rem; background: var(--bg-color); padding: 8px; border-radius: 6px;">Code: <strong id="2fa-secret-text" style="letter-spacing: 1px;"></strong></p>
+            <p>Code: <strong id="2fa-secret-text"></strong></p>
             
-            <div style="text-align: left; margin-top: 1.5rem;">
-                <label style="font-size: 0.85rem; font-weight: 600;">6-stelliger Bestätigungscode:</label>
-                <input type="text" id="2fa-verify-code" placeholder="000000" maxlength="6" 
-                       style="font-size: 1.5rem; text-align: center; letter-spacing: 5px; width: 100%; padding: 10px; margin-top: 5px;">
+            <div>
+                <label>6-stelliger Bestätigungscode:</label>
+                <input type="text" id="2fa-verify-code" placeholder="000000" maxlength="6">
             </div>
             
-            <div style="display: flex; gap: 10px; margin-top: 2rem;">
-                <button onclick="confirm2FA()" class="btn-primary" style="flex: 2;">Aktivieren</button>
-                <button onclick="close2FAModal()" class="btn-secondary" style="flex: 1;">Abbrechen</button>
+            <div>
+                <button onclick="confirm2FA()" class="btn-primary">Aktivieren</button>
+                <button onclick="close2FAModal()" class="btn-secondary">Abbrechen</button>
             </div>
         </div>
     </div>
