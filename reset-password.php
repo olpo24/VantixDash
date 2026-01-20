@@ -78,70 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
     <title>Passwort neu setzen - VantixDash</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <style>
-        body.login-page {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f5f7fb;
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-        }
-        .login-card {
-            width: 100%;
-            max-width: 400px;
-            padding: 2.5rem;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.05);
-        }
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .login-header h2 { color: #222e3c; margin: 0; font-size: 1.5rem; }
-        .alert {
-            padding: 0.75rem 1rem;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-        .alert-error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
-        .alert-success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
-        
-        .form-group { margin-bottom: 1.25rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; color: #495057; font-size: 0.85rem; font-weight: 500; }
-        .form-control {
-            width: 100%;
-            padding: 0.6rem 0.75rem;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .btn-action {
-            width: 100%;
-            padding: 0.75rem;
-            background: #3b7ddd;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
-        }
-        .btn-action:hover { background: #2f64b1; }
-        .login-footer {
-            margin-top: 1.5rem;
-            text-align: center;
-            font-size: 0.85rem;
-        }
-    </style>
 </head>
 <body class="login-page">
     <div class="login-card">
         <div class="login-header">
-            <i class="ph ph-lock-key-open" style="font-size: 3rem; color: #3b7ddd;"></i>
+            <i class="ph ph-lock-key-open"></i>
             <h2 style="margin-top: 1rem;">Neues Passwort</h2>
         </div>
 
@@ -170,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
             </form>
         <?php else: ?>
             <div class="login-footer">
-                <p style="color: #6c757d;">Warten auf Weiterleitung...</p>
-                <a href="login.php" style="color: #3b7ddd; text-decoration: none; font-weight: 600;">Sofort zum Login</a>
+                <p>Warten auf Weiterleitung...</p>
+                <a href="login.php">Sofort zum Login</a>
             </div>
         <?php endif; ?>
     </div>
