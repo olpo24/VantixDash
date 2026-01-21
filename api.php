@@ -1,231 +1,322 @@
+<?php
 /**
- * VantixDash - Main Application JS
- * Fokus: Security, UI-Modals & Live-Updates
+ * api.php - Zentraler AJAX-Endpunkt für VantixDash
+ */
+declare(strict_types=1);
+
+session_start();
+
+/**
+ * 1. AUTOLOADER & NAMESPACES
+ */
+require_once __DIR__ . '/autoload.php';
+
+use VantixDash\Logger;
+use VantixDash\RateLimiter;
+use VantixDash\SiteService;
+use VantixDash\MailService;
+use VantixDash\Config\ConfigService;
+use VantixDash\Config\ConfigRepository;
+use VantixDash\Config\SettingsService;
+use VantixDash\User\UserService;
+use VantixDash\User\PasswordService;
+use VantixDash\User\TwoFactorService;
+use VantixDash\Mail\SmtpConfigService;
+
+/**
+ * 2. HELPER FUNKTIONEN
+ */
+function jsonError(int $httpCode, string $message): never {
+    http_response_code($httpCode);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => $message, 'code' => $httpCode]);
+    exit;
+}
+
+function jsonSuccess(array $data = [], string $message = ''): void {
+    header('Content-Type: application/json');
+    echo json_encode(array_merge(['success' => true, 'message' => $message], $data));
+    exit;
+}
+
+function getRequestHeader(string $name): string {
+    $name = strtoupper(str_replace('-', '_', $name));
+    return $_SERVER['HTTP_' . $name] ?? '';
+}
+
+/**
+ * 3. INITIALISIERUNG
+ */
+// 1. Zuerst den Logger erstellen (WICHTIG!)
+$logger = new Logger(__DIR__ . '/data/logs/app.log'); // Pfad ggf. anpassen
+$rateLimiter = new RateLimiter();
+$repository = new ConfigRepository();
+$configService = new ConfigService($repository);
+$settingsService = new SettingsService($configService);
+
+// User Layer
+$userService = new UserService($configService);
+$passwordService = new PasswordService($configService);
+$twoFactorService = new TwoFactorService($configService);
+
+// Mail Layer
+$smtpConfigService = new SmtpConfigService($configService);
+
+// Site Management - MIT SettingsService
+$siteService = new SiteService(
+    __DIR__ . '/data/sites.json', 
+    $configService, 
+    $logger,
+    $settingsService  // ← HINZUGEFÜGT
+);
+// Externe Libs (nicht PSR-4 konform)
+require_once __DIR__ . '/libs/GoogleAuthenticator.php';
+$ga = new \PHPGangsta_GoogleAuthenticator();
+
+/**
+ * 4. GLOBALER SCHUTZ
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+// Rate Limiting (Schutz vor Brute-Force/Spam)
+if (!$rateLimiter->checkLimit($_SERVER['REMOTE_ADDR'] . '_api', 100, 60)) {
+    jsonError(429, 'Zu viele Anfragen. Bitte kurz warten.');
+}
 
-    // Helper: Verhindert Mehrfach-Klicks auf die gleiche Funktion
-    const busySites = new Set();
+// Authentifizierung
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    jsonError(401, 'Nicht autorisiert');
+}
 
-    const escapeHTML = (str) => {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    };
+// Session Timeout (Nutzt jetzt getInt für Typsicherheit)
+$timeout = $settingsService->getTimeout('session');
+if (isset($_SESSION['last_activity']) && (time() - (int)$_SESSION['last_activity'] > $timeout)) {
+    session_unset();
+    session_destroy();
+    jsonError(401, 'Session abgelaufen.');
+}
+$_SESSION['last_activity'] = time();
 
-    const getRowById = (id) => {
-        return document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
-    };
+// CSRF-SCHUTZ bei POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $token = getRequestHeader('X-CSRF-TOKEN') ?: ($_POST['csrf_token'] ?? '');
+    if (empty($token) || !isset($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$token)) {
+        jsonError(403, 'CSRF-Token ungültig.');
+    }
+}
 
-    /**
-     * TOAST & UI HELPERS
-     */
-    window.showToast = (message, type = 'info', duration = 4000) => {
-        let container = document.getElementById('toast-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'toast-container';
-            document.body.appendChild(container);
-        }
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        const icons = { info: 'ph-info', success: 'ph-check-circle', warning: 'ph-warning', error: 'ph-warning-octagon' };
-        toast.innerHTML = `<i class="ph ${icons[type] || 'ph-bell'}" style="font-size: 1.2rem;"></i><span>${escapeHTML(message)}</span>`;
-        container.appendChild(toast);
-        const removeToast = () => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300); };
-        toast.onclick = removeToast;
-        setTimeout(removeToast, duration);
-    };
+/**
+ * 5. ROUTING MIT FEHLERBEHANDLUNG
+ */
+$action = $_GET['action'] ?? '';
 
-    const setLoading = (isLoading) => {
-        const buttons = document.querySelectorAll('button:not(.close-btn)');
-        buttons.forEach(btn => {
-            if (isLoading) {
-                if (!btn.dataset.originalHtml) btn.dataset.originalHtml = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<i class="ph ph-circle-notch ph-spin"></i>';
-            } else {
-                if (btn.dataset.originalHtml) btn.innerHTML = btn.dataset.originalHtml;
-                btn.disabled = false;
-            }
-        });
-        document.body.style.cursor = isLoading ? 'wait' : 'default';
-    };
-
-    /**
-     * ZENTRALER API-HANDLER
-     */
-    window.apiCall = async (action, method = 'GET', data = null, silent = false) => {
-        if (!silent) setLoading(true);
-        const url = `api.php?action=${action}`;
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-        try {
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
-                body: (method === 'POST' && data) ? (data instanceof FormData ? data : new URLSearchParams(data)) : null
-            });
-            const result = await response.json();
-            if (!response.ok) { handleHttpError(response.status, result.message); return null; }
-            return result;
-        } catch (error) {
-            showToast('Netzwerkfehler.', 'error');
-            return null;
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
-
-    const handleHttpError = (status, message) => {
-        if (status === 401) setTimeout(() => window.location.href = 'login.php?timeout=1', 1500);
-        showToast(message || 'Fehler aufgetreten', status === 422 ? 'warning' : 'error');
-    };
-
-    /**
-     * DASHBOARD ACTIONS
-     */
-    window.refreshSite = async (id, isBatch = false) => {
-        if (busySites.has(id)) return;
-        busySites.add(id);
-
-        const row = getRowById(id);
-        const btnIcon = row?.querySelector('.refresh-single i');
-        if (btnIcon) btnIcon.classList.add('ph-spin');
-
-        const result = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`, 'GET', null, isBatch);
+try {
+    switch ($action) {
         
-        if (result && result.success) {
-            const site = result.data;
-            if (!isBatch) showToast(`${site.name} aktualisiert.`, 'success');
-            
-            if (row) {
-                row.querySelector('.wp-version').textContent = 'v' + site.wp_version;
-                const statusInd = row.querySelector('.status-indicator');
-                statusInd.className = `status-indicator status-badge ${site.status}`;
-                
-                row.querySelector('.update-count-core').textContent = site.updates.core;
-                row.querySelector('.update-count-plugins').textContent = site.updates.plugins;
-                row.querySelector('.update-count-themes').textContent = site.updates.themes;
+        case 'refresh_site':
+            try {
+                $id = $_GET['id'] ?? '';
+                if (empty($id)) {
+                    jsonError(400, 'ID fehlt');
+                }
 
-                row.querySelectorAll('.update-pill').forEach(pill => {
-                    const count = parseInt(pill.querySelector('span').textContent);
-                    pill.classList.toggle('has-updates', count > 0);
-                });
+                // Der Service wirft jetzt bei Problemen eine SiteRefreshException
+                $updatedSite = $siteService->refreshSiteData($id);
+                
+                jsonSuccess([
+                    'data' => $updatedSite
+                ], 'Seite erfolgreich aktualisiert.');
+
+            } catch (\VantixDash\Exception\SiteRefreshException $e) {
+                $logger->info("Refresh-Warnung für ID $id: " . $e->getMessage());
+                jsonError(422, $e->getMessage()); 
+
+            } catch (Exception $e) {
+                $logger->error("Kritischer Fehler bei Refresh: " . $e->getMessage());
+                jsonError(500, 'Ein interner Systemfehler ist aufgetreten.');
             }
-        }
+            break;
 
-        if (btnIcon) btnIcon.classList.remove('ph-spin');
-        setTimeout(() => busySites.delete(id), 1000); 
-        return result;
-    };
-
-    window.refreshAllSites = async () => {
-        const icon = document.getElementById('refresh-all-icon');
-        if (icon?.classList.contains('ph-spin')) return;
-
-        const rows = document.querySelectorAll('tr[data-id]');
-        icon?.classList.add('ph-spin');
-        showToast('Massenprüfung gestartet...', 'info');
-
-        for (const row of rows) {
-            await window.refreshSite(row.dataset.id, true);
-        }
-
-        icon?.classList.remove('ph-spin');
-        showToast('Alle Seiten geprüft.', 'success');
-    };
-
-   /**
- * MODAL & DETAILS
- */
-window.openDetails = async (id) => {
-    const modal = document.getElementById('details-modal');
-    const modalBody = document.getElementById('modal-body');
-    if (!modal) return;
-
-    modalBody.innerHTML = '<div class="modal-loading"><i class="ph ph-circle-notch ph-spin"></i><p>Lade Details...</p></div>';
-    modal.style.display = 'flex';
-
-    const res = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
-    if (res?.success) {
-        const site = res.data;
-        document.getElementById('modal-title').innerText = site.name;
-
-        let html = `
-            <div class="modal-detail-wrapper">
-                <div class="detail-meta-header">
-                    <span><strong>WP:</strong> ${escapeHTML(site.wp_version)}</span>
-                    <span><strong>PHP:</strong> ${escapeHTML(site.php || 'N/A')}</span>
-                </div>
-                
-                <div class="detail-grid">
-                    <section>
-                        <h4><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>
-                        ${renderUpdateList(site.plugin_list || [])}
-                    </section>
-                    <section>
-                        <h4><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>
-                        ${renderUpdateList(site.theme_list || [])}
-                    </section>
-                </div>
-            </div>`;
-        modalBody.innerHTML = html;
-    } else {
-        modalBody.innerHTML = '<p class="alert alert-error">Details konnten nicht geladen werden.</p>';
-    }
-};
-
-const renderUpdateList = (items) => {
-    if (!items || items.length === 0) return '<p class="text-muted small">Alles aktuell.</p>';
-    let list = '<ul class="modal-update-list">';
-    items.forEach(item => {
-        list += `
-            <li>
-                <span class="item-name">${escapeHTML(item.name)}</span>
-                <span class="item-version">${escapeHTML(item.old_version)} <i class="ph ph-arrow-right"></i> <strong>${escapeHTML(item.new_version)}</strong></span>
-            </li>`;
-    });
-    return list + '</ul>';
-};
-    window.closeModal = () => {
-        document.getElementById('details-modal').style.display = 'none';
-    };
-
-    /**
-     * UI NAVIGATION
-     */
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const sidebar = document.getElementById('sidebar');
-
-    if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
-            // Für Mobile Support
-            sidebar.classList.toggle('show-mobile');
-        });
-    }
-
-    document.querySelectorAll('.submenu-toggle').forEach(toggle => {
-        toggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            const submenu = this.nextElementSibling;
-            const caret = this.querySelector('.caret-icon');
-            
-            if (submenu) {
-                submenu.classList.toggle('show');
-                if (caret) {
-                    caret.style.transform = submenu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
+        case 'login_site':
+            $id = $_GET['id'] ?? '';
+            $targetSite = null;
+            foreach ($siteService->getAll() as $s) {
+                if ($s['id'] === $id) {
+                    $targetSite = $s;
+                    break;
                 }
             }
-        });
-    });
 
-    // Schließen des Modals bei Klick auf das Overlay
-    window.addEventListener('click', (e) => {
-        const modal = document.getElementById('details-modal');
-        if (e.target === modal) closeModal();
-    });
-});
+            if ($targetSite) {
+                $apiUrl = rtrim($targetSite['url'], '/') . '/wp-json/vantixdash/v1/login';
+                $options = ['http' => [
+                    'header' => "X-Vantix-Secret: " . $targetSite['api_key'] . "\r\n",
+                    'timeout' => $settingsService->getTimeout('api'),
+                    'ignore_errors' => true
+                ]];
+                
+                $response = @file_get_contents($apiUrl, false, stream_context_create($options));
+                $data = json_decode((string)$response, true);
+                
+                if (isset($data['login_url'])) {
+                    jsonSuccess(['login_url' => $data['login_url']]);
+                } else {
+                    $msg = $data['message'] ?? 'Login fehlgeschlagen.';
+                    jsonError(500, $msg);
+                }
+            } else {
+                jsonError(404, 'Seite nicht gefunden.');
+            }
+            break;
+
+        case 'add_site':
+            $name = $_POST['name'] ?? '';
+            $url = $_POST['url'] ?? '';
+            
+            if (empty($name) || empty($url)) {
+                jsonError(400, 'Bitte Name und URL angeben.');
+            }
+
+            $newSite = $siteService->addSite($name, $url);
+            if ($newSite) {
+                $logger->info("Neue Seite hinzugefügt: $name");
+                jsonSuccess(['site' => $newSite], 'Seite erfolgreich hinzugefügt.');
+            } else {
+                jsonError(500, 'Fehler beim Speichern der Konfiguration.');
+            }
+            break;
+
+        case 'delete_site':
+            $id = $_POST['id'] ?? '';
+            if ($siteService->deleteSite($id)) {
+                $logger->info("Seite gelöscht (ID: $id)");
+                jsonSuccess([], 'Seite erfolgreich entfernt.');
+            } else {
+                jsonError(500, 'Löschen fehlgeschlagen oder Seite existiert nicht.');
+            }
+            break;
+
+        case 'get_logs':
+            $logs = $logger->getEntries(); 
+            jsonSuccess(['data' => $logs]);
+            break;
+
+        case 'clear_logs':
+            if ($logger->clear()) {
+                $logger->info("Log-Historie wurde geleert.");
+                jsonSuccess([], 'Logs erfolgreich geleert.');
+            } else {
+                jsonError(500, 'Fehler beim Leeren der Logs.');
+            }
+            break;
+
+        case 'update_profile':
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    
+    if ($userService->updateProfile($username, $email)) {
+        jsonSuccess([], 'Profil erfolgreich aktualisiert.');
+    } else {
+        jsonError(400, 'Ungültige E-Mail Adresse.');
+    }
+    break;
+
+        case 'setup_2fa':
+    $secret = $twoFactorService->generateSecret();
+    $_SESSION['temp_2fa_secret'] = $secret;
+    
+    $username = $userService->getUsername();
+    $qrCodeUrl = $twoFactorService->getQrCodeUrl($secret, $username);
+    
+    jsonSuccess(['qrCodeUrl' => $qrCodeUrl, 'secret' => $secret]);
+    break;
+// ==================== UPDATE MANAGEMENT ====================
+
+case 'check_updates':
+    $channel = $_GET['channel'] ?? 'stable';
+    
+    if (!in_array($channel, ['stable', 'beta', 'dev'], true)) {
+        $channel = 'stable';
+    }
+    
+    $updateService = new VantixDash\UpdateService($settingsService, $logger);
+    $result = $updateService->checkForUpdates($channel);
+    
+    jsonResponse($result);
+    break;
+
+case 'install_update':
+    requireAuth();
+    requirePost();
+    requireCsrf();
+    
+    $downloadUrl = $_POST['download_url'] ?? '';
+    
+    if (empty($downloadUrl) || !filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
+        jsonResponse(['success' => false, 'message' => 'Ungültige Download-URL'], 400);
+    }
+    
+    if (!str_starts_with($downloadUrl, 'https://github.com/') && 
+        !str_starts_with($downloadUrl, 'https://api.github.com/')) {
+        jsonResponse(['success' => false, 'message' => 'Nur GitHub-Downloads erlaubt'], 403);
+    }
+    
+    $updateService = new VantixDash\UpdateService($settingsService, $logger);
+    $success = $updateService->installUpdate($downloadUrl);
+    
+    if ($success) {
+        jsonResponse([
+            'success' => true,
+            'message' => 'Update erfolgreich installiert. Seite wird neu geladen...',
+            'reload' => true
+        ]);
+    } else {
+        jsonResponse(['success' => false, 'message' => 'Update-Installation fehlgeschlagen'], 500);
+    }
+    break;
+case 'verify_2fa':
+    $secret = $_SESSION['temp_2fa_secret'] ?? '';
+    $code = $_POST['code'] ?? '';
+    
+    if ($twoFactorService->verify($code, $secret)) {
+        $twoFactorService->enable($secret);
+        unset($_SESSION['temp_2fa_secret']);
+        jsonSuccess([], '2FA erfolgreich aktiviert.');
+    } else {
+        jsonError(400, 'Der eingegebene Code ist falsch.');
+    }
+    break;
+
+case 'disable_2fa':
+    if ($twoFactorService->disable()) {
+        jsonSuccess([], '2FA wurde deaktiviert.');
+    } else {
+        jsonError(500, 'Deaktivierung fehlgeschlagen.');
+    }
+    break;
+
+        case 'test_smtp':
+            $mailService = new MailService($configService, $logger);
+            $targetEmail = $_POST['email'] ?? '';
+            
+            if (empty($targetEmail) || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+                jsonError(400, 'Bitte eine gültige Empfänger-E-Mail angeben.');
+            }
+
+            $subject = "VantixDash - SMTP Test";
+            $body = "<h1>SMTP Test erfolgreich!</h1><p>Diese E-Mail bestätigt, dass deine SMTP-Konfiguration korrekt funktioniert.</p>";
+            
+            if ($mailService->send($targetEmail, $subject, $body, strip_tags($body))) {
+                jsonSuccess([], 'Test-E-Mail wurde erfolgreich versendet.');
+            } else {
+                jsonError(500, 'Versand fehlgeschlagen. Bitte Logs prüfen.');
+            }
+            break;
+
+        default:
+            jsonError(404, 'Die angeforderte API-Aktion ist unbekannt.');
+            break;
+    }
+} catch (Exception $e) {
+    $logger->error("API Exception: " . $e->getMessage());
+    jsonError(400, $e->getMessage());
+}
