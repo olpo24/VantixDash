@@ -10,7 +10,8 @@ class UpdateService {
     private SettingsService $settings;
     private Logger $logger;
     
-    private const GITHUB_REPO = 'olpo24/vantixdash';
+    // ⚠️ WICHTIG: Hier deinen GitHub Username/Repo eintragen!
+    private const GITHUB_REPO = 'your-username/vantixdash';
     private const API_URL = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases';
     private const UPDATE_DIR = __DIR__ . '/../data/';
     
@@ -20,101 +21,102 @@ class UpdateService {
     }
 
     public function checkForUpdates(string $channel = 'stable'): array {
-    $currentVersion = $this->settings->getVersion();
-    
-    try {
-        $releases = $this->fetchReleases($channel);
+        $currentVersion = $this->settings->getVersion();
         
-        // ← WICHTIG: Leeres Array abfangen
-        if (empty($releases)) {
+        try {
+            $releases = $this->fetchReleases($channel);
+            
+            // Leeres Array abfangen BEVOR wir auf [0] zugreifen
+            if (empty($releases) || !is_array($releases)) {
+                $this->logger->info("Keine Releases auf GitHub gefunden für Channel: $channel");
+                return [
+                    'update_available' => false,
+                    'current' => $currentVersion,
+                    'channel' => $channel,
+                    'message' => 'Keine Releases auf GitHub gefunden. Bitte erstelle zuerst einen Release.'
+                ];
+            }
+            
+            $latestRelease = $releases[0];
+            
+            // Null-Checks für tag_name
+            if (!isset($latestRelease['tag_name']) || empty($latestRelease['tag_name'])) {
+                $this->logger->error('Release gefunden, aber tag_name fehlt');
+                return [
+                    'update_available' => false,
+                    'current' => $currentVersion,
+                    'message' => 'Release-Daten unvollständig'
+                ];
+            }
+            
+            $latestVersion = ltrim($latestRelease['tag_name'], 'v');
+            
+            // Dev-Channel: Immer als Update anzeigen
+            if ($channel === 'dev') {
+                $downloadUrl = $this->getAssetUrl($latestRelease);
+                
+                if (!$downloadUrl) {
+                    return [
+                        'update_available' => false,
+                        'current' => $currentVersion,
+                        'message' => 'Development Build gefunden, aber ZIP noch nicht verfügbar. GitHub Action läuft noch?'
+                    ];
+                }
+                
+                return [
+                    'update_available' => true,
+                    'current' => $currentVersion,
+                    'latest' => $latestVersion,
+                    'tag' => $latestRelease['tag_name'],
+                    'download_url' => $downloadUrl,
+                    'is_dev' => true,
+                    'is_beta' => false,
+                    'changelog' => $latestRelease['body'] ?? '',
+                    'published_at' => $latestRelease['published_at'] ?? '',
+                    'message' => 'Development Build verfügbar'
+                ];
+            }
+            
+            // Version vergleichen
+            if (version_compare($latestVersion, $currentVersion, '>')) {
+                $downloadUrl = $this->getAssetUrl($latestRelease);
+                
+                if (!$downloadUrl) {
+                    return [
+                        'update_available' => false,
+                        'current' => $currentVersion,
+                        'message' => 'Neuere Version gefunden, aber ZIP noch nicht verfügbar. GitHub Action läuft noch?'
+                    ];
+                }
+                
+                return [
+                    'update_available' => true,
+                    'current' => $currentVersion,
+                    'latest' => $latestVersion,
+                    'tag' => $latestRelease['tag_name'],
+                    'download_url' => $downloadUrl,
+                    'is_beta' => $latestRelease['prerelease'] ?? false,
+                    'is_dev' => false,
+                    'changelog' => $latestRelease['body'] ?? '',
+                    'published_at' => $latestRelease['published_at'] ?? ''
+                ];
+            }
+            
             return [
                 'update_available' => false,
                 'current' => $currentVersion,
-                'channel' => $channel,
-                'message' => 'Keine Releases auf GitHub gefunden. Bitte erstelle zuerst einen Release.'
+                'message' => 'Du nutzt bereits die neueste Version.'
             ];
-        }
-        
-        $latestRelease = $releases[0];
-        
-        // Zusätzlicher Null-Check
-        if (!isset($latestRelease['tag_name'])) {
+            
+        } catch (Exception $e) {
+            $this->logger->error('Update-Check fehlgeschlagen: ' . $e->getMessage());
             return [
-                'update_available' => false,
-                'current' => $currentVersion,
                 'error' => true,
-                'message' => 'Release-Daten unvollständig'
-            ];
-        }
-        
-        $latestVersion = ltrim($latestRelease['tag_name'], 'v');
-        
-        // Dev-Channel: Immer als Update anzeigen
-        if ($channel === 'dev') {
-            $downloadUrl = $this->getAssetUrl($latestRelease);
-            
-            if (!$downloadUrl) {
-                return [
-                    'update_available' => false,
-                    'current' => $currentVersion,
-                    'message' => 'Development Build gefunden, aber noch kein Download verfügbar.'
-                ];
-            }
-            
-            return [
-                'update_available' => true,
                 'current' => $currentVersion,
-                'latest' => $latestVersion,
-                'tag' => $latestRelease['tag_name'],
-                'download_url' => $downloadUrl,
-                'is_dev' => true,
-                'is_beta' => false,
-                'changelog' => $latestRelease['body'] ?? '',
-                'published_at' => $latestRelease['published_at'] ?? '',
-                'message' => 'Development Build verfügbar'
+                'message' => 'GitHub API Fehler: ' . $e->getMessage()
             ];
         }
-        
-        // Version vergleichen
-        if (version_compare($latestVersion, $currentVersion, '>')) {
-            $downloadUrl = $this->getAssetUrl($latestRelease);
-            
-            if (!$downloadUrl) {
-                return [
-                    'update_available' => false,
-                    'current' => $currentVersion,
-                    'message' => 'Neuere Version gefunden, aber Download noch nicht verfügbar. GitHub Action läuft noch?'
-                ];
-            }
-            
-            return [
-                'update_available' => true,
-                'current' => $currentVersion,
-                'latest' => $latestVersion,
-                'tag' => $latestRelease['tag_name'],
-                'download_url' => $downloadUrl,
-                'is_beta' => $latestRelease['prerelease'] ?? false,
-                'is_dev' => false,
-                'changelog' => $latestRelease['body'] ?? '',
-                'published_at' => $latestRelease['published_at'] ?? ''
-            ];
-        }
-        
-        return [
-            'update_available' => false,
-            'current' => $currentVersion,
-            'message' => 'Du nutzt bereits die neueste Version.'
-        ];
-        
-    } catch (Exception $e) {
-        $this->logger->error('Update-Check fehlgeschlagen: ' . $e->getMessage());
-        return [
-            'error' => true,
-            'current' => $currentVersion,
-            'message' => 'GitHub API Fehler: ' . $e->getMessage()
-        ];
     }
-}
 
     private function fetchReleases(string $channel): array {
         $context = stream_context_create([
@@ -122,44 +124,55 @@ class UpdateService {
                 'method' => 'GET',
                 'header' => "User-Agent: VantixDash-Updater\r\n" .
                            "Accept: application/vnd.github+json\r\n",
-                'timeout' => 10
+                'timeout' => 10,
+                'ignore_errors' => true
             ]
         ]);
         
         $response = @file_get_contents(self::API_URL, false, $context);
         
         if ($response === false) {
+            $this->logger->error('GitHub API nicht erreichbar: ' . self::API_URL);
             throw new Exception('GitHub API nicht erreichbar');
         }
         
         $releases = json_decode($response, true);
         
         if (!is_array($releases)) {
-            throw new Exception('Ungültige API-Antwort');
+            $this->logger->error('GitHub API ungültige Antwort: ' . substr($response, 0, 200));
+            throw new Exception('Ungültige API-Antwort von GitHub');
         }
         
+        // Leeres Array ist OK - kein Fehler werfen, einfach zurückgeben
+        if (empty($releases)) {
+            $this->logger->info('GitHub Repo hat noch keine Releases');
+            return [];
+        }
+        
+        // Nach Channel filtern
         switch ($channel) {
             case 'stable':
                 $releases = array_filter($releases, function($r) {
                     return !($r['prerelease'] ?? false) 
-                        && !str_contains($r['tag_name'], 'dev');
+                        && !str_contains($r['tag_name'] ?? '', 'dev');
                 });
                 break;
                 
             case 'beta':
                 $releases = array_filter($releases, function($r) {
-                    return !str_contains($r['tag_name'], 'dev');
+                    return !str_contains($r['tag_name'] ?? '', 'dev');
                 });
                 break;
                 
             case 'dev':
                 $releases = array_filter($releases, function($r) {
-                    return $r['tag_name'] === 'dev-latest';
+                    return ($r['tag_name'] ?? '') === 'dev-latest';
                 });
                 break;
         }
         
-        return $releases;
+        // Re-index array nach filter
+        return array_values($releases);
     }
 
     private function getAssetUrl(array $release): ?string {
@@ -168,8 +181,8 @@ class UpdateService {
         }
         
         foreach ($release['assets'] as $asset) {
-            if (str_ends_with($asset['name'], '.zip')) {
-                return $asset['browser_download_url'];
+            if (isset($asset['name']) && str_ends_with($asset['name'], '.zip')) {
+                return $asset['browser_download_url'] ?? null;
             }
         }
         
