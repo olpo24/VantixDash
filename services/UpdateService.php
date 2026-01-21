@@ -20,65 +20,102 @@ class UpdateService {
     }
 
     public function checkForUpdates(string $channel = 'stable'): array {
-        $currentVersion = $this->settings->getVersion();
+    $currentVersion = $this->settings->getVersion();
+    
+    try {
+        $releases = $this->fetchReleases($channel);
         
-        try {
-            $releases = $this->fetchReleases($channel);
-            
-            if (empty($releases)) {
-                return [
-                    'update_available' => false,
-                    'current' => $currentVersion,
-                    'channel' => $channel
-                ];
-            }
-            
-            $latestRelease = $releases[0];
-            $latestVersion = ltrim($latestRelease['tag_name'], 'v');
-            
-            if ($channel === 'dev') {
-                return [
-                    'update_available' => true,
-                    'current' => $currentVersion,
-                    'latest' => $latestVersion,
-                    'tag' => $latestRelease['tag_name'],
-                    'download_url' => $this->getAssetUrl($latestRelease),
-                    'is_dev' => true,
-                    'is_beta' => false,
-                    'changelog' => $latestRelease['body'] ?? '',
-                    'published_at' => $latestRelease['published_at'],
-                    'message' => 'Development Build verfügbar'
-                ];
-            }
-            
-            if (version_compare($latestVersion, $currentVersion, '>')) {
-                return [
-                    'update_available' => true,
-                    'current' => $currentVersion,
-                    'latest' => $latestVersion,
-                    'tag' => $latestRelease['tag_name'],
-                    'download_url' => $this->getAssetUrl($latestRelease),
-                    'is_beta' => $latestRelease['prerelease'],
-                    'is_dev' => false,
-                    'changelog' => $latestRelease['body'] ?? '',
-                    'published_at' => $latestRelease['published_at']
-                ];
-            }
-            
+        if (empty($releases)) {
             return [
                 'update_available' => false,
                 'current' => $currentVersion,
-                'message' => 'Du nutzt bereits die neueste Version.'
-            ];
-            
-        } catch (Exception $e) {
-            $this->logger->error('Update-Check fehlgeschlagen: ' . $e->getMessage());
-            return [
-                'error' => true,
-                'message' => $e->getMessage()
+                'channel' => $channel,
+                'message' => 'Keine Releases auf GitHub gefunden. Erstelle zuerst einen Release.'
             ];
         }
+        
+        $latestRelease = $releases[0];
+        
+        // Null-Check für tag_name
+        if (!isset($latestRelease['tag_name']) || $latestRelease['tag_name'] === null) {
+            return [
+                'update_available' => false,
+                'current' => $currentVersion,
+                'error' => true,
+                'message' => 'Release hat keinen gültigen Tag'
+            ];
+        }
+        
+        $latestVersion = ltrim($latestRelease['tag_name'], 'v');
+        
+        // Dev-Channel: Immer als Update anzeigen
+        if ($channel === 'dev') {
+            $downloadUrl = $this->getAssetUrl($latestRelease);
+            
+            if (!$downloadUrl) {
+                return [
+                    'update_available' => false,
+                    'current' => $currentVersion,
+                    'error' => true,
+                    'message' => 'Kein Download-Asset gefunden. GitHub Action läuft noch?'
+                ];
+            }
+            
+            return [
+                'update_available' => true,
+                'current' => $currentVersion,
+                'latest' => $latestVersion,
+                'tag' => $latestRelease['tag_name'],
+                'download_url' => $downloadUrl,
+                'is_dev' => true,
+                'is_beta' => false,
+                'changelog' => $latestRelease['body'] ?? '',
+                'published_at' => $latestRelease['published_at'] ?? '',
+                'message' => 'Development Build verfügbar'
+            ];
+        }
+        
+        // Version vergleichen
+        if (version_compare($latestVersion, $currentVersion, '>')) {
+            $downloadUrl = $this->getAssetUrl($latestRelease);
+            
+            if (!$downloadUrl) {
+                return [
+                    'update_available' => false,
+                    'current' => $currentVersion,
+                    'error' => true,
+                    'message' => 'Update gefunden, aber kein Download verfügbar'
+                ];
+            }
+            
+            return [
+                'update_available' => true,
+                'current' => $currentVersion,
+                'latest' => $latestVersion,
+                'tag' => $latestRelease['tag_name'],
+                'download_url' => $downloadUrl,
+                'is_beta' => $latestRelease['prerelease'] ?? false,
+                'is_dev' => false,
+                'changelog' => $latestRelease['body'] ?? '',
+                'published_at' => $latestRelease['published_at'] ?? ''
+            ];
+        }
+        
+        return [
+            'update_available' => false,
+            'current' => $currentVersion,
+            'message' => 'Du nutzt bereits die neueste Version.'
+        ];
+        
+    } catch (Exception $e) {
+        $this->logger->error('Update-Check fehlgeschlagen: ' . $e->getMessage());
+        return [
+            'error' => true,
+            'current' => $currentVersion,
+            'message' => 'GitHub API Fehler: ' . $e->getMessage()
+        ];
     }
+}
 
     private function fetchReleases(string $channel): array {
         $context = stream_context_create([
