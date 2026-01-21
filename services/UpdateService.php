@@ -25,24 +25,25 @@ class UpdateService {
     try {
         $releases = $this->fetchReleases($channel);
         
+        // ← WICHTIG: Leeres Array abfangen
         if (empty($releases)) {
             return [
                 'update_available' => false,
                 'current' => $currentVersion,
                 'channel' => $channel,
-                'message' => 'Keine Releases auf GitHub gefunden. Erstelle zuerst einen Release.'
+                'message' => 'Keine Releases auf GitHub gefunden. Bitte erstelle zuerst einen Release.'
             ];
         }
         
         $latestRelease = $releases[0];
         
-        // Null-Check für tag_name
-        if (!isset($latestRelease['tag_name']) || $latestRelease['tag_name'] === null) {
+        // Zusätzlicher Null-Check
+        if (!isset($latestRelease['tag_name'])) {
             return [
                 'update_available' => false,
                 'current' => $currentVersion,
                 'error' => true,
-                'message' => 'Release hat keinen gültigen Tag'
+                'message' => 'Release-Daten unvollständig'
             ];
         }
         
@@ -56,8 +57,7 @@ class UpdateService {
                 return [
                     'update_available' => false,
                     'current' => $currentVersion,
-                    'error' => true,
-                    'message' => 'Kein Download-Asset gefunden. GitHub Action läuft noch?'
+                    'message' => 'Development Build gefunden, aber noch kein Download verfügbar.'
                 ];
             }
             
@@ -83,8 +83,7 @@ class UpdateService {
                 return [
                     'update_available' => false,
                     'current' => $currentVersion,
-                    'error' => true,
-                    'message' => 'Update gefunden, aber kein Download verfügbar'
+                    'message' => 'Neuere Version gefunden, aber Download noch nicht verfügbar. GitHub Action läuft noch?'
                 ];
             }
             
