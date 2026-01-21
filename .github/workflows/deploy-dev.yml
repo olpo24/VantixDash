@@ -1,0 +1,60 @@
+name: Deploy Development Build
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-dev:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout develop branch
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Update version marker
+        run: |
+          VERSION=$(grep "'version'" version.php | sed "s/.*'\(.*\)'.*/\1/")
+          sed -i "s/'version' => '.*'/'version' => '${VERSION}-dev'/" version.php
+
+      - name: Create Development ZIP
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          ZIP_NAME="VantixDash_develop_${TIMESTAMP}.zip"
+          
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+          
+          zip -r "$ZIP_NAME" . \
+            -x "*.git*" \
+            -x ".github/*" \
+            -x "data/config.json" \
+            -x "data/sites.json" \
+            -x "data/*.log"
+
+      - name: Create/Update Development Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: dev-latest
+          name: "🔧 Development Build (latest)"
+          body: |
+            ## 🔧 Development Build - Latest
+            
+            **⚠️ WARNING: Unstable development build!**
+            
+            - Built: ${{ github.event.head_commit.timestamp }}
+            - Commit: ${{ github.sha }}
+            
+            Only for testing before beta release!
+            
+            ---
+            **Last commit:** ${{ github.event.head_commit.message }}
+          files: ${{ env.ZIP_NAME }}
+          prerelease: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
