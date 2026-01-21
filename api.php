@@ -241,51 +241,35 @@ case 'check_updates':
     $updateService = new VantixDash\UpdateService($settingsService, $logger);
     $result = $updateService->checkForUpdates($channel);
     
-    jsonResponse($result);
+    // Verwende deine bestehende jsonSuccess/jsonError Logik
+    if (isset($result['error']) && $result['error']) {
+        jsonError(500, $result['message'] ?? 'Update-Check fehlgeschlagen');
+    }
+    
+    jsonSuccess($result);
     break;
 
 case 'install_update':
-    requireAuth();
-    requirePost();
-    requireCsrf();
-    
     $downloadUrl = $_POST['download_url'] ?? '';
     
     if (empty($downloadUrl) || !filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
-        jsonResponse(['success' => false, 'message' => 'Ungültige Download-URL'], 400);
+        jsonError(400, 'Ungültige Download-URL');
     }
     
     if (!str_starts_with($downloadUrl, 'https://github.com/') && 
         !str_starts_with($downloadUrl, 'https://api.github.com/')) {
-        jsonResponse(['success' => false, 'message' => 'Nur GitHub-Downloads erlaubt'], 403);
+        jsonError(403, 'Nur GitHub-Downloads erlaubt');
     }
     
     $updateService = new VantixDash\UpdateService($settingsService, $logger);
     $success = $updateService->installUpdate($downloadUrl);
     
     if ($success) {
-        jsonResponse([
-            'success' => true,
-            'message' => 'Update erfolgreich installiert. Seite wird neu geladen...',
-            'reload' => true
-        ]);
+        jsonSuccess(['reload' => true], 'Update erfolgreich installiert. Seite wird neu geladen...');
     } else {
-        jsonResponse(['success' => false, 'message' => 'Update-Installation fehlgeschlagen'], 500);
+        jsonError(500, 'Update-Installation fehlgeschlagen');
     }
     break;
-case 'verify_2fa':
-    $secret = $_SESSION['temp_2fa_secret'] ?? '';
-    $code = $_POST['code'] ?? '';
-    
-    if ($twoFactorService->verify($code, $secret)) {
-        $twoFactorService->enable($secret);
-        unset($_SESSION['temp_2fa_secret']);
-        jsonSuccess([], '2FA erfolgreich aktiviert.');
-    } else {
-        jsonError(400, 'Der eingegebene Code ist falsch.');
-    }
-    break;
-
 case 'disable_2fa':
     if ($twoFactorService->disable()) {
         jsonSuccess([], '2FA wurde deaktiviert.');
