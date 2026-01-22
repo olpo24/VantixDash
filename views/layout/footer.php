@@ -25,5 +25,6 @@
     </div>
 </div>
 <script src="assets/js/app.js"></script>
+<script src="assets/js/update-manager.js"></script>
 </body>
 </html>
