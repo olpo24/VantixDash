@@ -10,8 +10,7 @@ class UpdateService {
     private SettingsService $settings;
     private Logger $logger;
     
-    // ⚠️ WICHTIG: Hier deinen GitHub Username/Repo eintragen!
-    private const GITHUB_REPO = 'your-username/vantixdash';
+    private const GITHUB_REPO = 'olpo24vantixdash';
     private const API_URL = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases';
     private const UPDATE_DIR = __DIR__ . '/../data/';
     
