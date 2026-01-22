@@ -1,23 +1,16 @@
 /**
  * VantixDash - Update Manager
- * Handles automatic updates from GitHub
  */
 
 const UpdateManager = {
     currentVersion: null,
     latestRelease: null,
     
-    /**
-     * Initialize Update Manager
-     */
     init() {
         this.checkOnPageLoad();
         this.attachEventListeners();
     },
     
-    /**
-     * Check for updates on settings page load
-     */
     checkOnPageLoad() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('view') === 'settings_general') {
@@ -25,26 +18,18 @@ const UpdateManager = {
         }
     },
     
-    /**
-     * Attach button event listeners
-     */
     attachEventListeners() {
-        // Manual check button
         const checkBtn = document.getElementById('check-updates-btn');
         if (checkBtn) {
             checkBtn.addEventListener('click', () => this.checkForUpdates());
         }
         
-        // Install update button
         const installBtn = document.getElementById('install-update-btn');
         if (installBtn) {
             installBtn.addEventListener('click', () => this.installUpdate());
         }
     },
     
-    /**
-     * Check for available updates
-     */
     async checkForUpdates() {
         const channel = localStorage.getItem('vantix_update_channel') || 'stable';
         const banner = document.getElementById('update-banner');
@@ -56,7 +41,7 @@ const UpdateManager = {
         }
         
         try {
-            const result = await apiCall(`check_updates&channel=${channel}`, 'GET', null, true);
+            const result = await window.apiCall(`check_updates&channel=${channel}`, 'GET', null, true);
             
             if (result.error) {
                 showToast('Update-Check fehlgeschlagen: ' + result.message, 'error');
@@ -69,7 +54,7 @@ const UpdateManager = {
                 this.latestRelease = result;
                 this.showUpdateBanner(result);
             } else {
-                if (banner) banner.classList.remove('show');
+                if (banner) banner.style.display = 'none';
                 showToast(result.message || 'Du nutzt bereits die neueste Version', 'success');
             }
             
@@ -84,9 +69,6 @@ const UpdateManager = {
         }
     },
     
-    /**
-     * Display update banner
-     */
     showUpdateBanner(releaseInfo) {
         const banner = document.getElementById('update-banner');
         const versionTag = document.getElementById('new-version-number');
@@ -98,7 +80,6 @@ const UpdateManager = {
             versionTag.textContent = releaseInfo.latest;
         }
         
-        // Channel badges
         if (betaBadge) {
             if (releaseInfo.is_dev) {
                 betaBadge.textContent = 'DEV';
@@ -115,15 +96,11 @@ const UpdateManager = {
             }
         }
         
-        banner.classList.add('show');
+        banner.style.display = 'block';
         
-        // Log update info
         console.log('Update verfügbar:', releaseInfo);
     },
     
-    /**
-     * Install the update
-     */
     async installUpdate() {
         if (!this.latestRelease || !this.latestRelease.download_url) {
             showToast('Keine Update-URL gefunden', 'error');
@@ -141,13 +118,7 @@ const UpdateManager = {
         
         warningText += '\n\nEin Backup wird automatisch erstellt. Fortfahren?';
         
-        const confirmed = await showConfirm(
-            'Update installieren',
-            warningText,
-            { okText: 'Jetzt updaten', isDanger: channel === 'dev' }
-        );
-        
-        if (!confirmed) return;
+        if (!confirm(warningText)) return;
         
         const btn = document.getElementById('install-update-btn');
         if (btn) {
@@ -159,7 +130,7 @@ const UpdateManager = {
             const formData = new FormData();
             formData.append('download_url', this.latestRelease.download_url);
             
-            const result = await apiCall('install_update', 'POST', formData);
+            const result = await window.apiCall('install_update', 'POST', formData);
             
             if (result.success) {
                 showToast('Update erfolgreich! Seite wird neu geladen...', 'success');
@@ -181,11 +152,9 @@ const UpdateManager = {
     }
 };
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     UpdateManager.init();
 });
 
-// Expose to window for inline onclick handlers
 window.checkForUpdates = () => UpdateManager.checkForUpdates();
 window.installUpdate = () => UpdateManager.installUpdate();
