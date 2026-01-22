@@ -175,8 +175,6 @@ $lastUpdate = $settingsService->getLastUpdate();
     </div>
 </div>
 
-<script src="assets/js/update-manager.js"></script>
-
 <script>
 // Initialize channel selector
 document.addEventListener('DOMContentLoaded', () => {
