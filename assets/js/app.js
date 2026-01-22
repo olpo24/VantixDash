@@ -139,61 +139,57 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /**
-     * MODAL & DETAILS
-     */
-    window.openDetails = async (id) => {
-        const modal = document.getElementById('details-modal');
-        const modalBody = document.getElementById('modal-body');
-        if (!modal) return;
+ * MODAL & DETAILS
+ */
+window.openDetails = async (id) => {
+    const modal = document.getElementById('details-modal');
+    const modalBody = document.getElementById('modal-body');
+    if (!modal) return;
 
-        modalBody.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="ph ph-circle-notch ph-spin" style="font-size:2rem;"></i><p>Lade Details...</p></div>';
-        modal.style.display = 'flex';
+    modalBody.innerHTML = '<div class="modal-loading"><i class="ph ph-circle-notch ph-spin"></i><p>Lade Details...</p></div>';
+    modal.style.display = 'flex';
 
-        const res = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
-        if (res?.success) {
-            const site = res.data;
-            document.getElementById('modal-title').innerText = site.name;
+    const res = await apiCall(`refresh_site&id=${encodeURIComponent(id)}`);
+    if (res?.success) {
+        const site = res.data;
+        document.getElementById('modal-title').innerText = site.name;
 
-            let html = `
-                <div class="modal-detail-wrapper">
-                    <div class="detail-meta-header">
-                        <span><strong>WP:</strong> ${escapeHTML(site.wp_version)}</span>
-                        <span><strong>PHP:</strong> ${escapeHTML(site.php || 'N/A')}</span>
-                    </div>
-                    
-                    <div class="detail-grid">
-                        <section>
-                            <h4><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>
-                            ${renderUpdateList(site.details?.plugins || [])}
-                        </section>
-                        <section>
-                            <h4><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>
-                            ${renderUpdateList(site.details?.themes || [])}
-                        </section>
-                    </div>
-                </div>`;
-            modalBody.innerHTML = html;
-        } else {
-            modalBody.innerHTML = '<p class="alert alert-error">Details konnten nicht geladen werden.</p>';
-        }
-    };
+        let html = `
+            <div class="modal-detail-wrapper">
+                <div class="detail-meta-header">
+                    <span><strong>WP:</strong> ${escapeHTML(site.wp_version)}</span>
+                    <span><strong>PHP:</strong> ${escapeHTML(site.php || 'N/A')}</span>
+                </div>
+                
+                <div class="detail-grid">
+                    <section>
+                        <h4><i class="ph ph-plug"></i> Plugins (${site.updates.plugins})</h4>
+                        ${renderUpdateList(site.plugin_list || [])}
+                    </section>
+                    <section>
+                        <h4><i class="ph ph-palette"></i> Themes (${site.updates.themes})</h4>
+                        ${renderUpdateList(site.theme_list || [])}
+                    </section>
+                </div>
+            </div>`;
+        modalBody.innerHTML = html;
+    } else {
+        modalBody.innerHTML = '<p class="alert alert-error">Details konnten nicht geladen werden.</p>';
+    }
+};
 
-    const renderUpdateList = (items) => {
-        if (!items || items.length === 0) return '<p class="text-muted small">Alles aktuell.</p>';
-        let list = '<ul class="modal-update-list">';
-        items.forEach(item => {
-            list += `
-                <li>
-                    <span class="item-name">${escapeHTML(item.name)}</span>
-                    <span class="item-version">${escapeHTML(item.version)} <i class="ph ph-arrow-right"></i> <strong>${escapeHTML(item.new_version)}</strong></span>
-                </li>`;
-        });
-        return list + '</ul>';
-    };
-
-    window.closeModal = () => {
-        document.getElementById('details-modal').style.display = 'none';
-    };
+const renderUpdateList = (items) => {
+    if (!items || items.length === 0) return '<p class="text-muted small">Alles aktuell.</p>';
+    let list = '<ul class="modal-update-list">';
+    items.forEach(item => {
+        list += `
+            <li>
+                <span class="item-name">${escapeHTML(item.name)}</span>
+                <span class="item-version">${escapeHTML(item.old_version)} <i class="ph ph-arrow-right"></i> <strong>${escapeHTML(item.new_version)}</strong></span>
+            </li>`;
+    });
+    return list + '</ul>';
+};
 
     /**
      * UI NAVIGATION
